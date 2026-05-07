@@ -1,0 +1,1 @@
+"""Drawing modality placeholder."""

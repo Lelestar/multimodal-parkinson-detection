@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Environments
+.venv/
+venv/
+.env
+.env.*
+
+# Data and generated artifacts
+data/
+report.log
+*.log
+
+# Keep the lightweight keyboard model in git; ignore heavier local experiments.
+models/*.joblib
+models/*.pt
+models/*.pkl
+!models/README.md
+!models/keyboard_dynamics_neuroqwerty_v2_pipeline.joblib
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Résultats - Détection Parkinson{% endblock %}
+
+{% block content %}
+<section class="page-section">
+  <div class="section-header">
+    <h1>Résultat global</h1>
+    <p>Synthèse des tests réalisés pendant cette session navigateur.</p>
+  </div>
+
+  <section id="fusion-empty" class="test-panel" hidden>
+    <h2>Aucun test disponible</h2>
+    <p class="medical-note">Réalisez au moins un test avant de calculer un résultat global.</p>
+    <div class="actions">
+      <a class="button" href="{{ url_for('keyboard.keyboard_page') }}">Faire le test clavier</a>
+    </div>
+  </section>
+
+  <section id="fusion-panel" class="result-panel" hidden>
+    <h2>Score global</h2>
+    <dl class="result-list">
+      <div>
+        <dt>Signal détecté</dt>
+        <dd id="fusion-label"></dd>
+      </div>
+      <div>
+        <dt>Score fusionné</dt>
+        <dd id="fusion-score"></dd>
+      </div>
+      <div>
+        <dt>Confiance globale</dt>
+        <dd id="fusion-confidence"></dd>
+      </div>
+      <div>
+        <dt>Modalités utilisées</dt>
+        <dd id="fusion-used"></dd>
+      </div>
+    </dl>
+    <h3 class="subsection-title">Détail des modalités</h3>
+    <div id="modality-results" class="modality-grid"></div>
+    <ul id="fusion-warnings" class="warnings"></ul>
+    <p class="medical-note">Ce résultat combine uniquement les tests disponibles. Il est expérimental et ne constitue pas un diagnostic médical.</p>
+  </section>
+</section>
+<script src="{{ url_for('static', filename='js/results_fusion.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Test clavier - Détection Parkinson{% endblock %}
+
+{% block content %}
+<section class="page-section keyboard-layout">
+  <div class="section-header">
+    <h1>Clavier</h1>
+    <p>Analyse exploratoire de la dynamique de frappe à partir d’un texte standardisé.</p>
+  </div>
+
+  <div class="test-panel">
+    <div class="instructions">
+      <h2>Instructions</h2>
+      <ul>
+        <li>Recopiez le texte complet à votre rythme habituel.</li>
+        <li>Corrigez vos erreurs comme vous le feriez normalement.</li>
+        <li>Essayez de rester naturel, sans chercher à aller plus vite ou plus lentement.</li>
+      </ul>
+    </div>
+
+    <p class="notice-note" aria-label="Avertissement">
+      <span aria-hidden="true">!</span>
+      Ce test est un outil exploratoire de démonstration. Il ne constitue pas un diagnostic médical.
+    </p>
+
+    <p class="protocol-note" aria-label="Note protocole">
+      Pour respecter au mieux le protocole NeuroQWERTY, il est préférable d’utiliser un clavier QWERTY. Les autres dispositions, comme AZERTY, peuvent modifier certaines mesures liées à la position des touches.
+    </p>
+
+    <label class="field-label" for="prompt-text">Texte à recopier</label>
+    <p id="prompt-text" class="prompt-text">{{ prompt }}</p>
+
+    <label class="field-label" for="typing-area">Zone de saisie</label>
+    <textarea id="typing-area" rows="8" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+
+    <div class="sample-status" aria-live="polite">
+      <div class="sample-status-header">
+        <span>Échantillon clavier</span>
+        <strong id="sample-status-label">Échantillon trop court</strong>
+      </div>
+      <div class="progress-track" aria-hidden="true">
+        <div id="sample-progress-bar" class="progress-bar"></div>
+      </div>
+      <p id="sample-status-detail">0 / 300 frappes valides minimum. Recommandé : 600 ou plus.</p>
+    </div>
+
+    <div class="actions">
+      <button id="reset-button" type="button" class="button secondary">Réinitialiser</button>
+      <button id="submit-button" type="button" class="button" disabled>Analyser</button>
+    </div>
+  </div>
+
+  <section id="result-panel" class="result-panel" hidden>
+    <h2>Résultat clavier</h2>
+    <dl class="result-list">
+      <div>
+        <dt>Signal détecté</dt>
+        <dd id="result-label"></dd>
+      </div>
+      <div>
+        <dt>Score exploratoire</dt>
+        <dd id="result-score"></dd>
+      </div>
+      <div>
+        <dt>Confiance du signal</dt>
+        <dd id="result-confidence"></dd>
+      </div>
+      <div>
+        <dt>Frappes valides</dt>
+        <dd id="result-keystrokes"></dd>
+      </div>
+    </dl>
+    <ul id="result-warnings" class="warnings"></ul>
+    <p class="medical-note">Ce résultat est expérimental et ne constitue pas un diagnostic médical.</p>
+    <div class="actions">
+      <a class="button" href="{{ url_for('results') }}">Voir le résultat global</a>
+    </div>
+  </section>
+</section>
+<script src="{{ url_for('static', filename='js/keyboard_capture.js') }}"></script>
+{% endblock %}

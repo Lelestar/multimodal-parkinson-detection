@@ -1,0 +1,54 @@
+# Modèles
+
+Ce dossier contient les artefacts nécessaires à l’inférence locale. Le README principal explique l’architecture générale; ce fichier précise les conventions du dossier `models/`.
+
+## Modèles versionnés
+
+```text
+models/keyboard_dynamics_neuroqwerty_v2_pipeline.joblib
+```
+
+Ce modèle clavier est conservé dans le repo pour que l’application fonctionne directement.
+
+Les modèles légers nécessaires à la démonstration peuvent aussi être ajoutés au repo, à condition qu’ils restent raisonnables en taille et qu’ils soient utiles au lancement local de l’application. Dans ce cas, il faut ajuster `.gitignore` pour autoriser explicitement le fichier concerné.
+
+L’artefact contient :
+
+- `pipeline` : pipeline scikit-learn chargeable par `joblib`.
+- `features` : liste des colonnes attendues.
+- `model` : nom court du modèle entraîné.
+- `level` : niveau d’agrégation utilisé.
+- `threshold` : seuil exploratoire, actuellement autour de `0.58`.
+- `note` : contexte d’entraînement.
+
+## Modèles locaux non versionnés
+
+Les modèles lourds, temporaires ou purement expérimentaux restent ignorés par git pour éviter de versionner des fichiers inutiles ou difficiles à manipuler. Exemples :
+
+```text
+models/voice_*.joblib
+models/voice_*.pt
+models/drawing_*.joblib
+models/drawing_*.pt
+models/*_experimental.*
+```
+
+Chaque modalité doit documenter dans son `predictor.py` le chemin attendu et le format de chargement.
+
+## Convention recommandée
+
+Pour un modèle scikit-learn, utiliser de préférence un artefact `joblib` contenant :
+
+```python
+{
+    "pipeline": fitted_pipeline,
+    "features": feature_names,
+    "model": "short_model_name",
+    "threshold": threshold,
+    "note": "training context"
+}
+```
+
+Pour un modèle deep learning, utiliser le format natif du framework (`.pt`, `.pth`, `.keras`, SavedModel) et garder le prétraitement dans `src/modalities/<modality>/predictor.py`.
+
+Dans tous les cas, le predictor doit retourner un `PredictionResult` standard pour que la fusion tardive puisse fonctionner.

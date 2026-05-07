@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Accueil - Détection Parkinson{% endblock %}
+
+{% block content %}
+<section class="page-section">
+  <div class="section-header">
+    <h1>Évaluation multimodale</h1>
+    <p>Interface de démonstration pour tester plusieurs modalités et fusionner leurs scores sans fournir de diagnostic médical.</p>
+    <div class="actions">
+      <a class="button" href="{{ url_for('results') }}">Voir le résultat global</a>
+    </div>
+  </div>
+  <div class="modality-grid">
+    {% for modality in modalities %}
+      <article class="modality-card">
+        <h2>{{ modality.display_name }}</h2>
+        {% if modality.route != "#" %}
+          <a class="button" href="{{ modality.route }}">Ouvrir</a>
+        {% else %}
+          <span class="tag">À implémenter</span>
+        {% endif %}
+      </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
