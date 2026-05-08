@@ -22,7 +22,7 @@ models/*.joblib
 models/*.pt
 models/*.pkl
 !models/README.md
-!models/keyboard_dynamics_neuroqwerty_v2_pipeline.joblib
+!models/keyboard_dynamics_neuroqwerty_agg_timing_xgb.joblib
 
 # OS/editor
 .DS_Store

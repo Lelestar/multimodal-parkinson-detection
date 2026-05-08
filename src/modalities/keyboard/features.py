@@ -42,6 +42,43 @@ FEATURE_COLUMNS = [
     "hand_entropy",
 ]
 
+AGG_TIMING_XGB_FEATURE_COLUMNS = [
+    "n_keystrokes",
+    "duration_sec",
+    "keys_per_min",
+    "hold_to_flight",
+    "long_hold_rate",
+    "long_flight_rate",
+    "hold_mean",
+    "hold_std",
+    "hold_median",
+    "hold_iqr",
+    "hold_q10",
+    "hold_q90",
+    "hold_cv",
+    "hold_diff_mean",
+    "hold_diff_std",
+    "hold_diff_abs_mean",
+    "hold_autocorr_lag1",
+    "hold_autocorr_lag2",
+    "hold_autocorr_lag5",
+    "hold_autocorr_lag10",
+    "flight_mean",
+    "flight_std",
+    "flight_median",
+    "flight_iqr",
+    "flight_q10",
+    "flight_q90",
+    "flight_cv",
+    "flight_diff_mean",
+    "flight_diff_std",
+    "flight_diff_abs_mean",
+    "flight_autocorr_lag1",
+    "flight_autocorr_lag2",
+    "flight_autocorr_lag5",
+    "flight_autocorr_lag10",
+]
+
 LEFT_CODES = {
     "KeyQ",
     "KeyW",
@@ -215,6 +252,46 @@ def _series_stats(values: pd.Series, prefix: str) -> dict[str, float]:
     }
 
 
+def _clean_signal(values: pd.Series, target_len: int) -> np.ndarray:
+    """Return a fixed-length numeric signal with median imputation."""
+    signal = pd.to_numeric(values, errors="coerce").replace([np.inf, -np.inf], np.nan)
+    median = signal.median()
+    if pd.isna(median):
+        median = 0.0
+    array = signal.fillna(median).to_numpy(dtype=float)
+    if len(array) == 0:
+        array = np.zeros(target_len, dtype=float)
+    if len(array) < target_len:
+        array = np.pad(array, (0, target_len - len(array)), mode="edge")
+    return array[:target_len]
+
+
+def _agg_signal_stats(values: pd.Series, prefix: str, target_len: int = 300) -> dict[str, float]:
+    """Compute the aggregate timing features used by the XGBoost model."""
+    signal = _clean_signal(values, target_len=target_len)
+    diff = np.diff(signal)
+    mean = float(np.mean(signal))
+    std = float(np.std(signal))
+    features = {
+        f"{prefix}_mean": mean,
+        f"{prefix}_std": std,
+        f"{prefix}_median": float(np.median(signal)),
+        f"{prefix}_iqr": float(np.quantile(signal, 0.75) - np.quantile(signal, 0.25)),
+        f"{prefix}_q10": float(np.quantile(signal, 0.10)),
+        f"{prefix}_q90": float(np.quantile(signal, 0.90)),
+        f"{prefix}_cv": float(std / mean) if mean else 0.0,
+        f"{prefix}_diff_mean": float(np.mean(diff)),
+        f"{prefix}_diff_std": float(np.std(diff)),
+        f"{prefix}_diff_abs_mean": float(np.mean(np.abs(diff))),
+    }
+    for lag in [1, 2, 5, 10]:
+        if len(signal) > lag and np.std(signal[:-lag]) > 0 and np.std(signal[lag:]) > 0:
+            features[f"{prefix}_autocorr_lag{lag}"] = float(np.corrcoef(signal[:-lag], signal[lag:])[0, 1])
+        else:
+            features[f"{prefix}_autocorr_lag{lag}"] = 0.0
+    return features
+
+
 def extract_segment_features(segment: pd.DataFrame) -> dict[str, float]:
     """Extract model features for one keystroke segment."""
     if segment.empty:
@@ -268,6 +345,33 @@ def extract_segment_features(segment: pd.DataFrame) -> dict[str, float]:
     return {column: features.get(column, np.nan) for column in FEATURE_COLUMNS}
 
 
+def extract_agg_timing_xgb_features(segment: pd.DataFrame, signal_len: int = 300) -> dict[str, float]:
+    """Extract the aggregate timing features used by the final XGBoost candidate."""
+    if segment.empty:
+        return {column: np.nan for column in AGG_TIMING_XGB_FEATURE_COLUMNS}
+
+    hold = pd.to_numeric(segment["hold_time"], errors="coerce")
+    flight = pd.to_numeric(segment["flight_time"], errors="coerce")
+    duration = float(segment["release_time"].max() - segment["press_time"].min())
+    duration = max(duration, 0.0)
+    hold_clean = hold.dropna()
+    flight_clean = flight.dropna()
+
+    features: dict[str, float] = {
+        "n_keystrokes": float(len(segment)),
+        "duration_sec": duration,
+        "keys_per_min": float(len(segment) * 60.0 / duration) if duration > 0 else np.nan,
+        "hold_to_flight": float(hold_clean.mean() / flight_clean.mean())
+        if len(hold_clean) and len(flight_clean) and flight_clean.mean()
+        else np.nan,
+        "long_hold_rate": float((hold_clean > hold_clean.quantile(0.90)).mean()) if len(hold_clean) > 5 else np.nan,
+        "long_flight_rate": float((flight_clean > 1.0).mean()) if len(flight_clean) > 5 else np.nan,
+    }
+    features.update(_agg_signal_stats(hold, "hold", target_len=signal_len))
+    features.update(_agg_signal_stats(flight, "flight", target_len=signal_len))
+    return {column: features.get(column, np.nan) for column in AGG_TIMING_XGB_FEATURE_COLUMNS}
+
+
 def build_feature_table(
     keystrokes: pd.DataFrame,
     window_size: int = 300,
@@ -291,3 +395,28 @@ def build_feature_table(
         start += stride
 
     return pd.DataFrame(rows, columns=FEATURE_COLUMNS)
+
+
+def build_agg_timing_xgb_feature_table(
+    keystrokes: pd.DataFrame,
+    window_size: int = 300,
+    stride: int = 150,
+    min_segment_len: int = 300,
+) -> pd.DataFrame:
+    """Split one session into segments and return XGBoost aggregate timing features."""
+    clean = clean_keystrokes(keystrokes)
+    if len(clean) < min_segment_len:
+        return pd.DataFrame(columns=AGG_TIMING_XGB_FEATURE_COLUMNS)
+
+    rows: list[dict[str, float]] = []
+    start = 0
+    while start < len(clean):
+        segment = clean.iloc[start : start + window_size].copy()
+        if len(segment) < min_segment_len:
+            break
+        rows.append(extract_agg_timing_xgb_features(segment, signal_len=window_size))
+        if start + window_size >= len(clean):
+            break
+        start += stride
+
+    return pd.DataFrame(rows, columns=AGG_TIMING_XGB_FEATURE_COLUMNS)

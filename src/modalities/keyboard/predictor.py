@@ -9,20 +9,20 @@ import joblib
 import numpy as np
 
 from src.common.schemas import PredictionResult, score_to_label
-from src.modalities.keyboard.features import build_feature_table, events_to_keystrokes
+from src.modalities.keyboard.features import build_agg_timing_xgb_feature_table, events_to_keystrokes
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_MODEL_PATH = PROJECT_ROOT / "models" / "keyboard_dynamics_neuroqwerty_v2_pipeline.joblib"
+DEFAULT_MODEL_PATH = PROJECT_ROOT / "models" / "keyboard_dynamics_neuroqwerty_agg_timing_xgb.joblib"
 
 
 class KeyboardPredictor:
-    """Load the keyboard v2 pipeline and predict an exploratory session risk."""
+    """Load the final keyboard pipeline and predict an exploratory session risk."""
 
     def __init__(
         self,
         model_path: str | Path = DEFAULT_MODEL_PATH,
-        threshold: float = 0.58,
+        threshold: float = 0.50,
         min_segment_len: int = 300,
         window_size: int = 300,
         stride: int = 150,
@@ -54,13 +54,37 @@ class KeyboardPredictor:
             )
 
         keystrokes = events_to_keystrokes(events)
-        features = build_feature_table(
+        valid_keystrokes = len(keystrokes)
+
+        if self.model_path.exists():
+            try:
+                artifact = self._load_artifact()
+            except Exception as exc:
+                return PredictionResult(
+                    modality="keyboard",
+                    status="error",
+                    confidence=0.0,
+                    details={"model_path": str(self.model_path), "valid_keystrokes": valid_keystrokes},
+                    warnings=[f"Erreur pendant le chargement du modèle clavier : {exc}"],
+                )
+        else:
+            return PredictionResult(
+                modality="keyboard",
+                status="error",
+                confidence=0.0,
+                details={"model_path": str(self.model_path)},
+                warnings=["Modèle clavier introuvable. Voir models/README.md."],
+            )
+
+        self.window_size = int(artifact.get("window", self.window_size))
+        self.stride = int(artifact.get("stride", self.stride))
+        self.min_segment_len = int(artifact.get("min_segment_len", self.min_segment_len))
+        features = build_agg_timing_xgb_feature_table(
             keystrokes,
             window_size=self.window_size,
             stride=self.stride,
             min_segment_len=self.min_segment_len,
         )
-        valid_keystrokes = len(keystrokes)
         if features.empty:
             return PredictionResult(
                 modality="keyboard",
@@ -75,17 +99,7 @@ class KeyboardPredictor:
                 ],
             )
 
-        if not self.model_path.exists():
-            return PredictionResult(
-                modality="keyboard",
-                status="error",
-                confidence=0.0,
-                details={"model_path": str(self.model_path)},
-                warnings=["Modèle clavier introuvable. Voir models/README.md."],
-            )
-
         try:
-            artifact = self._load_artifact()
             pipeline = artifact["pipeline"]
             expected_features = artifact.get("features", list(features.columns))
             model_input = features.reindex(columns=expected_features)

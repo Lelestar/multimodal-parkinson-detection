@@ -13,8 +13,8 @@ src/modalities/keyboard/     # features + prediction keyboard dynamics
 src/modalities/voice/        # placeholder contrat commun
 src/modalities/drawing/      # placeholder contrat commun
 models/                      # modèle clavier versionné, autres modèles ignorés
-notebooks/                   # expérimentation
-docs/                        # notes et documentation
+notebooks/                   # expérimentations par modalité
+docs/                        # documentation par modalité
 ```
 
 ## Installation
@@ -55,7 +55,7 @@ uv pip install -r requirements.txt
 
 ## Modèles et pipelines
 
-Le modèle clavier principal est versionné dans `models/keyboard_dynamics_neuroqwerty_v2_pipeline.joblib` pour que l’application fonctionne directement. Les conventions du dossier `models/`, les règles de versionnement des modèles légers et les formats recommandés sont décrits dans [`models/README.md`](models/README.md).
+Le modèle clavier principal est versionné dans `models/keyboard_dynamics_neuroqwerty_agg_timing_xgb.joblib` pour que l’application fonctionne directement. Les conventions du dossier `models/`, les règles de versionnement des modèles légers et les formats recommandés sont décrits dans [`models/README.md`](models/README.md).
 
 Chaque modalité peut utiliser son propre format de modèle (`joblib`, `.pt`, `.keras`, etc.), mais doit exposer un `predictor.py` qui retourne un `PredictionResult` standard.
 

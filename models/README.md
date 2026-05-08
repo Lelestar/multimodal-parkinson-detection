@@ -5,10 +5,10 @@ Ce dossier contient les artefacts nécessaires à l’inférence locale. Le READ
 ## Modèles versionnés
 
 ```text
-models/keyboard_dynamics_neuroqwerty_v2_pipeline.joblib
+models/keyboard_dynamics_neuroqwerty_agg_timing_xgb.joblib
 ```
 
-Ce modèle clavier est conservé dans le repo pour que l’application fonctionne directement.
+Ce modèle clavier est conservé dans le repo pour que l’application fonctionne directement. Il utilise des features temporelles agrégées et `XGBoost`. Il est recommandé pour la fusion multimodale parce qu’il produit un score de risque continu plus stable.
 
 Les modèles légers nécessaires à la démonstration peuvent aussi être ajoutés au repo, à condition qu’ils restent raisonnables en taille et qu’ils soient utiles au lancement local de l’application. Dans ce cas, il faut ajuster `.gitignore` pour autoriser explicitement le fichier concerné.
 
@@ -17,8 +17,8 @@ L’artefact contient :
 - `pipeline` : pipeline scikit-learn chargeable par `joblib`.
 - `features` : liste des colonnes attendues.
 - `model` : nom court du modèle entraîné.
-- `level` : niveau d’agrégation utilisé.
-- `threshold` : seuil exploratoire, actuellement autour de `0.58`.
+- `feature_builder` : extracteur de features à utiliser côté application, par exemple `agg_timing_xgb`.
+- `threshold` : seuil de décision, actuellement `0.50` pour `keyboard_dynamics_neuroqwerty_agg_timing_xgb.joblib`.
 - `note` : contexte d’entraînement.
 
 ## Modèles locaux non versionnés

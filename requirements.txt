@@ -11,3 +11,5 @@ joblib
 nbformat
 nbconvert
 torch
+xgboost
+PyWavelets
