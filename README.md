@@ -53,6 +53,18 @@ uv venv
 uv pip install -r requirements.txt
 ```
 
+Pour exécuter les notebooks expérimentaux, installer aussi les dépendances dédiées :
+
+```bash
+python -m pip install -r requirements-notebooks.txt
+```
+
+Avec `uv` :
+
+```bash
+uv pip install -r requirements-notebooks.txt
+```
+
 ## Modèles et pipelines
 
 Le modèle clavier principal est versionné dans `models/keyboard_dynamics_neuroqwerty_agg_timing_xgb.joblib` pour que l’application fonctionne directement. Les conventions du dossier `models/`, les règles de versionnement des modèles légers et les formats recommandés sont décrits dans [`models/README.md`](models/README.md).

@@ -1,0 +1,10 @@
+-r requirements.txt
+matplotlib
+seaborn
+ipykernel
+pyswarms
+imbalanced-learn
+nbformat
+nbconvert
+torch
+PyWavelets

@@ -1,15 +1,6 @@
 pandas
 numpy
 scikit-learn
-matplotlib
-seaborn
 flask
-ipykernel
-pyswarms
-imbalanced-learn
 joblib
-nbformat
-nbconvert
-torch
 xgboost
-PyWavelets
