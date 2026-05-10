@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Test dessin - Détection Parkinson{% endblock %}
+
+{% block content %}
+<section class="page-section keyboard-layout">
+  <div class="section-header">
+    <h1>Dessin</h1>
+    <p>Tracez la spirale en suivant le guide. L'analyse compare votre tracé à ceux du dataset NewHandPD (UNESP).</p>
+  </div>
+
+  <div class="test-panel">
+    <div class="instructions">
+      <h2>Instructions</h2>
+      <ul>
+        <li>Tracez la spirale en suivant le guide gris, depuis le centre vers l'extérieur.</li>
+        <li>Dessinez d'un trait continu, à votre rythme habituel.</li>
+        <li>Une fois le tracé terminé, relâchez la souris ou le stylet pour valider ou recommencer.</li>
+      </ul>
+    </div>
+
+    <p class="notice-note" aria-label="Avertissement">
+      <span aria-hidden="true">!</span>
+      Ce test est un outil exploratoire de démonstration. Il ne constitue pas un diagnostic médical.
+    </p>
+
+    <label class="field-label">Zone de dessin</label>
+    <div class="canvas-wrapper">
+      <canvas id="guide-canvas" width="400" height="400" aria-hidden="true"></canvas>
+      <canvas id="draw-canvas" width="400" height="400" aria-label="Zone de dessin de la spirale"></canvas>
+    </div>
+
+    <div id="drawing-actions" class="actions" hidden>
+      <button id="reset-button" type="button" class="button secondary">Effacer et recommencer</button>
+      <button id="submit-button" type="button" class="button">Analyser le tracé</button>
+    </div>
+    <div id="waiting-hint" class="field-label" style="color: var(--muted); margin-top: 12px;">
+      Commencez à dessiner pour faire apparaître les options.
+    </div>
+  </div>
+
+  <section id="result-panel" class="result-panel" hidden>
+    <h2>Résultat dessin</h2>
+    <dl class="result-list">
+      <div>
+        <dt>Signal détecté</dt>
+        <dd id="result-label"></dd>
+      </div>
+      <div>
+        <dt>Score exploratoire</dt>
+        <dd id="result-score"></dd>
+      </div>
+      <div>
+        <dt>Confiance du signal</dt>
+        <dd id="result-confidence"></dd>
+      </div>
+    </dl>
+    <ul id="result-warnings" class="warnings"></ul>
+    <p class="medical-note">Ce résultat est expérimental et ne constitue pas un diagnostic médical.</p>
+    <div class="actions">
+      <a class="button" href="{{ url_for('results') }}">Voir le résultat global</a>
+    </div>
+  </section>
+</section>
+<script src="{{ url_for('static', filename='js/drawing_capture.js') }}"></script>
+{% endblock %}

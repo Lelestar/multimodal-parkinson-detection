@@ -8,3 +8,5 @@ nbformat
 nbconvert
 torch
 PyWavelets
+requests
+scipy

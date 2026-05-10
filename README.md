@@ -11,10 +11,14 @@ app/                         # Flask, templates, assets web
 src/common/                  # contrat PredictionResult, fusion, registre
 src/modalities/keyboard/     # features + prediction keyboard dynamics
 src/modalities/voice/        # placeholder contrat commun
-src/modalities/drawing/      # placeholder contrat commun
-models/                      # modèle clavier versionné, autres modèles ignorés
+src/modalities/drawing/      # capture et prédiction drawing dynamics
+models/                      # modèles légers versionnés, autres modèles ignorés
 notebooks/                   # expérimentations par modalité
+notebooks/keyboard/          # notebooks clavier
+notebooks/drawing/           # notebooks dessin
 docs/                        # documentation par modalité
+docs/keyboard/               # documentation clavier
+docs/drawing/                # documentation dessin
 ```
 
 ## Installation
@@ -71,6 +75,11 @@ Le modèle clavier principal est versionné dans `models/keyboard_dynamics_neuro
 
 Chaque modalité peut utiliser son propre format de modèle (`joblib`, `.pt`, `.keras`, etc.), mais doit exposer un `predictor.py` qui retourne un `PredictionResult` standard.
 
+## Documentation par modalité
+
+- Clavier : [`docs/keyboard/synthese_finale_keyboard_dynamics.md`](docs/keyboard/synthese_finale_keyboard_dynamics.md)
+- Dessin : [`docs/drawing/synthese_drawing.md`](docs/drawing/synthese_drawing.md)
+
 ## Lancer l’application
 
 ```bash
@@ -81,8 +90,10 @@ Pages principales :
 
 - `/` : accueil et liste des modalités.
 - `/keyboard` : test clavier dans le navigateur.
+- `/drawing` : test dessin dans le navigateur.
 - `/results` : résultat global basé sur les modalités déjà réalisées.
 - `/api/keyboard/predict` : endpoint JSON pour la prédiction clavier.
+- `/api/drawing/predict` : endpoint JSON pour la prédiction dessin.
 - `/api/fusion` : fusion tardive de résultats de modalités.
 
 ## Contrat de prédiction

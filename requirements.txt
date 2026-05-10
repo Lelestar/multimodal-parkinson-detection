@@ -4,3 +4,5 @@ scikit-learn
 flask
 joblib
 xgboost
+Pillow
+scikit-image

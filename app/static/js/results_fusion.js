@@ -78,6 +78,12 @@ function renderModalityCards(predictionsByModality) {
       link.href = "/keyboard";
       link.textContent = "Faire le test";
       card.appendChild(link);
+    } else if (modality.key === "drawing") {
+      const link = document.createElement("a");
+      link.className = "button";
+      link.href = "/drawing";
+      link.textContent = "Faire le test";
+      card.appendChild(link);
     } else {
       const tag = document.createElement("span");
       tag.className = "tag";
@@ -132,3 +138,13 @@ async function loadFusion() {
 }
 
 loadFusion();
+
+// Reset all results 
+function resetAllResults() {
+  for (const modality of expectedModalities) {
+    sessionStorage.removeItem(`parkinson_result_${modality.key}`);
+  }
+  window.location.reload();
+}
+
+document.querySelector("#reset-all-button")?.addEventListener("click", resetAllResults);
