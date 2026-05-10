@@ -20,13 +20,11 @@ La méthode intégrée dans l’application utilise :
 - une extraction de features vocales inspirées des mesures classiques de dysphonie : fréquence fondamentale, jitter, shimmer, HNR/NHR, RPDE, DFA, D2 et PPE ;
 - un pipeline scikit-learn sauvegardé avec `joblib`.
 
-Le modèle attendu par l’application est :
+Le modèle utilisé par l’application est :
 
 ```text
 models/voice_parkinson_xgb.joblib
 ```
-
-Il n’est pas versionné dans le merge actuel. Il doit être exporté depuis le notebook voix avant d’utiliser la prédiction voix en local.
 
 Le prédicteur associé est :
 

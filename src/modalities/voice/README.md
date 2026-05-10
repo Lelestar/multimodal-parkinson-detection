@@ -4,13 +4,11 @@ Cette modalité analyse une phonation soutenue pour produire un score exploratoi
 
 Elle ne fournit pas de diagnostic médical.
 
-## Modèle attendu
+## Modèle utilisé
 
 ```text
 models/voice_parkinson_xgb.joblib
 ```
-
-Le modèle n’est pas versionné dans le merge actuel. Il doit être généré depuis le notebook voix avant d’utiliser cette modalité en local.
 
 Le prédicteur associé est :
 

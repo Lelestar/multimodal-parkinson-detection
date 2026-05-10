@@ -50,7 +50,7 @@ class VoicePredictor:
                 status="error",
                 confidence=0.0,
                 details={"model_path": str(self.model_path)},
-                warnings=["Modèle voix introuvable. Lancez d'abord le notebook pour exporter le modèle."],
+                warnings=["Modèle voix introuvable. Vérifiez que models/voice_parkinson_xgb.joblib est présent."],
             )
 
         try:
