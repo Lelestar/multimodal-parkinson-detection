@@ -9,9 +9,17 @@ models/keyboard_dynamics_neuroqwerty_agg_timing_xgb.joblib
 models/drawing_spiral_v1_pipeline.joblib
 ```
 
-Ces modèles légers sont conservés dans le repo pour que l’application fonctionne directement.
+Ces modèles légers sont conservés dans le repo pour que les modalités clavier et dessin fonctionnent directement.
 
 Le modèle clavier utilise des features temporelles agrégées et `XGBoost`. Le modèle dessin utilise des features HOG extraites d’une image de spirale et un pipeline scikit-learn.
+
+La modalité voix attend actuellement l’artefact suivant, à générer depuis le notebook voix :
+
+```text
+models/voice_parkinson_xgb.joblib
+```
+
+Il n’est pas versionné dans le merge actuel. S’il reste léger et nécessaire à la démonstration, il peut être ajouté au repo en autorisant explicitement ce fichier dans `.gitignore`.
 
 Les modèles légers nécessaires à la démonstration peuvent aussi être ajoutés au repo, à condition qu’ils restent raisonnables en taille et qu’ils soient utiles au lancement local de l’application. Dans ce cas, il faut ajuster `.gitignore` pour autoriser explicitement le fichier concerné.
 
@@ -24,7 +32,7 @@ L’artefact peut contenir, selon la modalité :
 - `threshold` : seuil de décision, actuellement `0.50` pour `keyboard_dynamics_neuroqwerty_agg_timing_xgb.joblib`.
 - `note` : contexte d’entraînement.
 
-Certains artefacts contiennent aussi des champs propres à leur modalité, comme `hog_params`, `cv_auc_mean` ou `test_auc` pour le dessin.
+Certains artefacts contiennent aussi des champs propres à leur modalité, comme `hog_params`, `cv_auc_mean` ou `test_auc` pour le dessin, ou `feature_medians` pour la voix.
 
 ## Modèles locaux non versionnés
 

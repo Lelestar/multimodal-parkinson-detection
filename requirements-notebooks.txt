@@ -10,3 +10,4 @@ torch
 PyWavelets
 requests
 scipy
+ucimlrepo

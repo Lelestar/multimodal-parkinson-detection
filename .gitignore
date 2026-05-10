@@ -24,6 +24,7 @@ models/*.pkl
 !models/README.md
 !models/keyboard_dynamics_neuroqwerty_agg_timing_xgb.joblib
 !models/drawing_spiral_v1_pipeline.joblib
+!models/voice_parkinson_xgb.joblib
 
 # OS/editor
 .DS_Store

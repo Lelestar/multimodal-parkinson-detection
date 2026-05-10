@@ -1,1 +1,1 @@
-"""Voice modality placeholder."""
+"""Voice modality package."""

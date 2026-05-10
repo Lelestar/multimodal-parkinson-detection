@@ -6,3 +6,5 @@ joblib
 xgboost
 Pillow
 scikit-image
+scipy
+praat-parselmouth

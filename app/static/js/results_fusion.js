@@ -84,6 +84,12 @@ function renderModalityCards(predictionsByModality) {
       link.href = "/drawing";
       link.textContent = "Faire le test";
       card.appendChild(link);
+    } else if (modality.key === "voice") {
+      const link = document.createElement("a");
+      link.className = "button";
+      link.href = "/voice";
+      link.textContent = "Faire le test";
+      card.appendChild(link);
     } else {
       const tag = document.createElement("span");
       tag.className = "tag";

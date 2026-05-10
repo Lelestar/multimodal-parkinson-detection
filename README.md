@@ -10,15 +10,17 @@ Ce projet ne fournit pas de diagnostic médical. Les résultats sont destinés �
 app/                         # Flask, templates, assets web
 src/common/                  # contrat PredictionResult, fusion, registre
 src/modalities/keyboard/     # features + prediction keyboard dynamics
-src/modalities/voice/        # placeholder contrat commun
+src/modalities/voice/        # capture et prédiction voix
 src/modalities/drawing/      # capture et prédiction drawing dynamics
 models/                      # modèles légers versionnés, autres modèles ignorés
 notebooks/                   # expérimentations par modalité
 notebooks/keyboard/          # notebooks clavier
 notebooks/drawing/           # notebooks dessin
+notebooks/voice/             # notebooks voix
 docs/                        # documentation par modalité
 docs/keyboard/               # documentation clavier
 docs/drawing/                # documentation dessin
+docs/voice/                  # documentation voix
 ```
 
 ## Installation
@@ -79,6 +81,7 @@ Chaque modalité peut utiliser son propre format de modèle (`joblib`, `.pt`, `.
 
 - Clavier : [`docs/keyboard/synthese_finale_keyboard_dynamics.md`](docs/keyboard/synthese_finale_keyboard_dynamics.md)
 - Dessin : [`docs/drawing/synthese_drawing.md`](docs/drawing/synthese_drawing.md)
+- Voix : [`docs/voice/synthese_voice.md`](docs/voice/synthese_voice.md)
 
 ## Lancer l’application
 
@@ -90,9 +93,11 @@ Pages principales :
 
 - `/` : accueil et liste des modalités.
 - `/keyboard` : test clavier dans le navigateur.
+- `/voice` : test voix dans le navigateur.
 - `/drawing` : test dessin dans le navigateur.
 - `/results` : résultat global basé sur les modalités déjà réalisées.
 - `/api/keyboard/predict` : endpoint JSON pour la prédiction clavier.
+- `/api/voice/predict` : endpoint JSON pour la prédiction voix.
 - `/api/drawing/predict` : endpoint JSON pour la prédiction dessin.
 - `/api/fusion` : fusion tardive de résultats de modalités.
 
