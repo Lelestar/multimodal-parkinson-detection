@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}Test voix - Détection Parkinson{% endblock %}
+
+{% block content %}
+<section class="page-section keyboard-layout">
+  <div class="section-header">
+    <h1>Voix</h1>
+    <p>Analyse exploratoire de la dynamique vocale à partir d'une phonation soutenue.</p>
+  </div>
+
+  <div class="test-panel">
+    <div class="instructions">
+      <h2>Instructions</h2>
+      <ul>
+        <li>Cliquez sur <strong>Enregistrer</strong> et accordez l'accès au microphone.</li>
+        <li>Prononcez la voyelle <strong>/a/</strong> de façon continue et stable pendant au moins <strong>5 secondes</strong>.</li>
+        <li>Maintenez un volume et une hauteur constants, comme si vous teniez une note.</li>
+        <li>Cliquez sur <strong>Arrêter</strong> quand vous avez terminé.</li>
+      </ul>
+    </div>
+
+    <p class="notice-note" aria-label="Avertissement">
+      <span aria-hidden="true">!</span>
+      Ce test est un outil exploratoire de démonstration. Il ne constitue pas un diagnostic médical.
+    </p>
+
+    <p class="protocol-note" aria-label="Note protocole">
+      L'enregistrement nécessite un microphone. L'audio est analysé localement et n'est pas conservé.
+      Format recommandé : WAV. Si votre navigateur ne supporte pas WAV, essayez Chrome.
+    </p>
+
+    <div class="sample-status" aria-live="polite">
+      <div class="sample-status-header">
+        <span>Durée d'enregistrement</span>
+        <strong id="sample-status-label">Prêt</strong>
+      </div>
+      <div class="progress-track" aria-hidden="true">
+        <div id="sample-progress-bar" class="progress-bar"></div>
+      </div>
+      <p id="sample-status-detail">Minimum : 5 s — Recommandé : 8–10 s</p>
+    </div>
+
+    <div class="actions">
+      <button id="record-button" type="button" class="button">Enregistrer</button>
+      <button id="stop-button" type="button" class="button secondary" disabled>Arrêter</button>
+      <button id="submit-button" type="button" class="button" disabled>Analyser</button>
+    </div>
+
+    <audio id="audio-preview" controls hidden style="margin-top:1rem;width:100%"></audio>
+  </div>
+
+  <section id="result-panel" class="result-panel" hidden>
+    <h2>Résultat voix</h2>
+    <dl class="result-list">
+      <div>
+        <dt>Signal détecté</dt>
+        <dd id="result-label"></dd>
+      </div>
+      <div>
+        <dt>Score exploratoire</dt>
+        <dd id="result-score"></dd>
+      </div>
+      <div>
+        <dt>Confiance du signal</dt>
+        <dd id="result-confidence"></dd>
+      </div>
+    </dl>
+    <ul id="result-warnings" class="warnings"></ul>
+    <p class="medical-note">Ce résultat est expérimental et ne constitue pas un diagnostic médical.</p>
+    <div class="actions">
+      <a class="button" href="{{ url_for('results') }}">Voir le résultat global</a>
+    </div>
+  </section>
+</section>
+
+<script>
+(function () {
+  const MIN_DURATION_MS = 5000;
+  const RECOMMENDED_MS = 8000;
+
+  const recordBtn    = document.getElementById('record-button');
+  const stopBtn      = document.getElementById('stop-button');
+  const submitBtn    = document.getElementById('submit-button');
+  const statusLabel  = document.getElementById('sample-status-label');
+  const statusDetail = document.getElementById('sample-status-detail');
+  const progressBar  = document.getElementById('sample-progress-bar');
+  const audioPreview = document.getElementById('audio-preview');
+  const resultPanel  = document.getElementById('result-panel');
+
+  let mediaRecorder = null;
+  let chunks = [];
+  let startTime = null;
+  let timerInterval = null;
+  let audioBlob = null;   // always WAV after conversion
+
+  // --- WAV encoder (Web Audio API → PCM 16-bit mono WAV) ---
+  function writeString(view, offset, str) {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  }
+
+  function audioBufferToWav(audioBuffer) {
+    // Downmix to mono
+    const numCh = audioBuffer.numberOfChannels;
+    const length = audioBuffer.length;
+    const mono = new Float32Array(length);
+    for (let ch = 0; ch < numCh; ch++) {
+      const data = audioBuffer.getChannelData(ch);
+      for (let i = 0; i < length; i++) mono[i] += data[i] / numCh;
+    }
+
+    const sampleRate = audioBuffer.sampleRate;
+    const buffer = new ArrayBuffer(44 + length * 2);
+    const view = new DataView(buffer);
+
+    writeString(view, 0,  'RIFF');
+    view.setUint32(4,  36 + length * 2, true);
+    writeString(view, 8,  'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);           // chunk size
+    view.setUint16(20, 1,  true);           // PCM
+    view.setUint16(22, 1,  true);           // mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true); // byte rate
+    view.setUint16(32, 2,  true);           // block align
+    view.setUint16(34, 16, true);           // 16-bit
+    writeString(view, 36, 'data');
+    view.setUint32(40, length * 2, true);
+
+    let offset = 44;
+    for (let i = 0; i < length; i++) {
+      const s = Math.max(-1, Math.min(1, mono[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      offset += 2;
+    }
+    return new Blob([buffer], { type: 'audio/wav' });
+  }
+
+  function updateProgress(elapsed) {
+    const pct = Math.min(100, (elapsed / RECOMMENDED_MS) * 100);
+    progressBar.style.width = pct + '%';
+    const sec = (elapsed / 1000).toFixed(1);
+    statusLabel.textContent  = elapsed < MIN_DURATION_MS ? 'Enregistrement…' : 'Enregistrement…';
+    statusDetail.textContent = sec + ' s — minimum 5 s';
+  }
+
+  recordBtn.addEventListener('click', async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      mediaRecorder = new MediaRecorder(stream);
+      chunks = [];
+      audioBlob = null;
+      submitBtn.disabled = true;
+      progressBar.style.width = '0%';
+      startTime = Date.now();
+
+      mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+
+      mediaRecorder.onstop = async () => {
+        clearInterval(timerInterval);
+        stream.getTracks().forEach(t => t.stop());
+        const elapsed = Date.now() - startTime;
+
+        statusLabel.textContent  = 'Conversion WAV…';
+        statusDetail.textContent = '';
+
+        try {
+          const rawBlob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+          const arrayBuffer = await rawBlob.arrayBuffer();
+          const audioCtx = new AudioContext();
+          const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+          audioCtx.close();
+
+          audioBlob = audioBufferToWav(audioBuffer);
+          audioPreview.src = URL.createObjectURL(audioBlob);
+          audioPreview.hidden = false;
+
+          const sec = (elapsed / 1000).toFixed(1);
+          if (elapsed < MIN_DURATION_MS) {
+            statusLabel.textContent  = 'Trop court';
+            statusDetail.textContent = sec + ' s — recommencez (minimum 5 s).';
+            submitBtn.disabled = true;
+          } else {
+            statusLabel.textContent  = 'Prêt à analyser';
+            statusDetail.textContent = sec + ' s enregistrées.';
+            submitBtn.disabled = false;
+          }
+        } catch (err) {
+          statusLabel.textContent  = 'Erreur conversion';
+          statusDetail.textContent = err.message;
+        }
+
+        recordBtn.disabled = false;
+        stopBtn.disabled   = true;
+      };
+
+      mediaRecorder.start(100);
+      recordBtn.disabled = true;
+      stopBtn.disabled   = false;
+      statusLabel.textContent  = 'Enregistrement…';
+      statusDetail.textContent = '0.0 s — minimum 5 s';
+
+      timerInterval = setInterval(() => updateProgress(Date.now() - startTime), 100);
+
+    } catch (err) {
+      statusLabel.textContent  = 'Erreur microphone';
+      statusDetail.textContent = err.message;
+    }
+  });
+
+  stopBtn.addEventListener('click', () => {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  });
+
+  submitBtn.addEventListener('click', async () => {
+    if (!audioBlob) return;
+    submitBtn.disabled   = true;
+    submitBtn.textContent = 'Analyse en cours…';
+    resultPanel.hidden   = true;
+
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recording.wav');
+
+    try {
+      const resp = await fetch('/api/voice/predict', { method: 'POST', body: formData });
+      const data = await resp.json();
+      showResult(data);
+    } catch (err) {
+      statusLabel.textContent  = 'Erreur réseau';
+      statusDetail.textContent = err.message;
+    } finally {
+      submitBtn.disabled    = false;
+      submitBtn.textContent = 'Analyser';
+    }
+  });
+
+  function showResult(data) {
+    document.getElementById('result-label').textContent =
+      data.label ? data.label.charAt(0).toUpperCase() + data.label.slice(1) : data.status;
+    document.getElementById('result-score').textContent =
+      data.score != null ? (data.score * 100).toFixed(1) + ' %' : '—';
+    document.getElementById('result-confidence').textContent =
+      data.confidence != null ? (data.confidence * 100).toFixed(0) + ' %' : '—';
+
+    const warnList = document.getElementById('result-warnings');
+    warnList.innerHTML = '';
+    (data.warnings || []).forEach(w => {
+      const li = document.createElement('li');
+      li.textContent = w;
+      warnList.appendChild(li);
+    });
+
+    if (data.status === 'ok') sessionStorage.setItem('voice_result', JSON.stringify(data));
+
+    resultPanel.hidden = false;
+    resultPanel.scrollIntoView({ behavior: 'smooth' });
+  }
+})();
+</script>
+{% endblock %}
