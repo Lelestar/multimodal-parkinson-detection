@@ -7,15 +7,17 @@ from flask import Flask, jsonify, render_template, request
 from src.common.fusion import late_fusion
 from src.common.registry import ModalityRegistration, registry
 from src.modalities.keyboard.routes import keyboard_bp
+from src.modalities.drawing.routes import drawing_bp
 
 
 def create_app() -> Flask:
     """Create the Flask application and register shared routes."""
     app = Flask(__name__)
     app.register_blueprint(keyboard_bp)
+    app.register_blueprint(drawing_bp)
     registry.register(ModalityRegistration(name="keyboard", display_name="Clavier", route="/keyboard"))
     registry.register(ModalityRegistration(name="voice", display_name="Voix", route="#"))
-    registry.register(ModalityRegistration(name="drawing", display_name="Dessin", route="#"))
+    registry.register(ModalityRegistration(name="drawing", display_name="Dessin", route="/drawing"))
 
     @app.get("/")
     def index():

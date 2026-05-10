@@ -4,3 +4,8 @@ scikit-learn
 flask
 imbalanced-learn
 joblib
+Pillow
+scipy
+requests
+matplotlib
+scikit-image

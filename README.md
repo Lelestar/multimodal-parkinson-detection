@@ -53,6 +53,40 @@ uv venv
 uv pip install -r requirements.txt
 ```
 
+## Dataset — Dessin (NewHandPD)
+
+Les images de spirales utilisées pour entraîner la modalité dessin proviennent du dataset **NewHandPD** (UNESP, Brésil).
+Elles ne sont pas versionnées dans le dépôt. Pour les télécharger :
+
+```powershell
+# Windows PowerShell
+python -c "
+import requests, zipfile, io
+from pathlib import Path
+
+urls = {
+    'hc': 'https://wwwp.fc.unesp.br/~papa/pub/datasets/Handpd/NewHealthy/HealthySpiral.zip',
+    'pd': 'https://wwwp.fc.unesp.br/~papa/pub/datasets/Handpd/NewPatients/PatientSpiral.zip',
+}
+for label, url in urls.items():
+    dest = Path('data/handpd') / label
+    dest.mkdir(parents=True, exist_ok=True)
+    r = requests.get(url, timeout=120)
+    r.raise_for_status()
+    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
+        zf.extractall(dest)
+    print(f'{label}: {len(list(dest.rglob(\"*.*\")))} fichiers extraits')
+"
+```
+
+Résultat attendu : `data/handpd/hc/HealthySpiral/*.jpg` (280 images) et `data/handpd/pd/PatientSpiral/*.jpg` (248 images).
+
+## Notebook — Entraînement du modèle de dessin
+
+`notebooks/drawing_model_training.ipynb` entraîne et exporte `models/drawing_spiral_v1_pipeline.joblib`.
+
+Lancer le notebook de haut en bas produit l'artefact et valide le pipeline d'inférence.
+
 ## Modèles et pipelines
 
 Le modèle clavier principal est versionné dans `models/keyboard_dynamics_neuroqwerty_v2_pipeline.joblib` pour que l’application fonctionne directement. Les conventions du dossier `models/`, les règles de versionnement des modèles légers et les formats recommandés sont décrits dans [`models/README.md`](models/README.md).

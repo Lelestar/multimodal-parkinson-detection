@@ -17,12 +17,13 @@ data/
 report.log
 *.log
 
-# Keep the lightweight keyboard model in git; ignore heavier local experiments.
+# Keep lightweight models in git; ignore heavier local experiments.
 models/*.joblib
 models/*.pt
 models/*.pkl
 !models/README.md
 !models/keyboard_dynamics_neuroqwerty_v2_pipeline.joblib
+!models/drawing_spiral_v1_pipeline.joblib
 
 # OS/editor
 .DS_Store

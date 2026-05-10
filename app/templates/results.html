@@ -14,6 +14,7 @@
     <p class="medical-note">Réalisez au moins un test avant de calculer un résultat global.</p>
     <div class="actions">
       <a class="button" href="{{ url_for('keyboard.keyboard_page') }}">Faire le test clavier</a>
+      <a class="button secondary" href="{{ url_for('drawing.drawing_page') }}">Faire le test dessin</a>
     </div>
   </section>
 
@@ -41,7 +42,11 @@
     <div id="modality-results" class="modality-grid"></div>
     <ul id="fusion-warnings" class="warnings"></ul>
     <p class="medical-note">Ce résultat combine uniquement les tests disponibles. Il est expérimental et ne constitue pas un diagnostic médical.</p>
+    <div class="actions">
+      <button id="reset-all-button" type="button" class="button secondary">↺ Réinitialiser tous les résultats</button>
+    </div>
   </section>
+</section>
 </section>
 <script src="{{ url_for('static', filename='js/results_fusion.js') }}"></script>
 {% endblock %}
