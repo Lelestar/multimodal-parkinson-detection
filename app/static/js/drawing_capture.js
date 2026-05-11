@@ -11,6 +11,8 @@ const drawCtx  = drawCanvas.getContext("2d");
 
 let isDrawing  = false;
 let hasDrawn   = false;
+let lastPoint  = null;   
+let smoothPos  = null;  
 
 function drawGuide() {
   const w        = guideCanvas.width;
@@ -59,26 +61,50 @@ function onPointerDown(event) {
   event.preventDefault();
   isDrawing = true;
   const { x, y } = getPos(event);
+  lastPoint = { x, y };
+  smoothPos  = { x, y };
   drawCtx.beginPath();
   drawCtx.moveTo(x, y);
-  drawCtx.strokeStyle = "#1a47a0"; 
-  drawCtx.lineWidth   = 2.5;
+  drawCtx.strokeStyle = "#1a1a1a";   
+  drawCtx.lineWidth   = 6;           
   drawCtx.lineCap     = "round";
   drawCtx.lineJoin    = "round";
 }
 
-function onPointerMove(event) {
-  if (!isDrawing) return;
-  event.preventDefault();
-  const { x, y } = getPos(event);
-  drawCtx.lineTo(x, y);
+// Smoothing factor: 0 = never moves, 1 = no smoothing.
+const EMA_ALPHA = 0.45;
+
+function drawSegment(raw) {
+  smoothPos = {
+    x: smoothPos.x + EMA_ALPHA * (raw.x - smoothPos.x),
+    y: smoothPos.y + EMA_ALPHA * (raw.y - smoothPos.y),
+  };
+  const mid = {
+    x: (lastPoint.x + smoothPos.x) / 2,
+    y: (lastPoint.y + smoothPos.y) / 2,
+  };
+  drawCtx.beginPath();
+  drawCtx.moveTo(lastPoint.x, lastPoint.y);
+  drawCtx.quadraticCurveTo(smoothPos.x, smoothPos.y, mid.x, mid.y);
   drawCtx.stroke();
+  lastPoint = mid;
+}
+
+function onPointerMove(event) {
+  if (!isDrawing || !lastPoint) return;
+  event.preventDefault();
+  const events = event.getCoalescedEvents ? event.getCoalescedEvents() : [event];
+  for (const e of events) {
+    drawSegment(getPos(e));
+  }
 }
 
 function onPointerUp(event) {
   if (!isDrawing) return;
   event.preventDefault();
   isDrawing = false;
+  lastPoint = null;
+  smoothPos = null;
   hasDrawn  = true;
   waitingHint.hidden  = true;
   drawingActions.hidden = false;
@@ -151,10 +177,9 @@ submitButton.addEventListener("click", async () => {
   const tempCtx = tempCanvas.getContext("2d");
   tempCtx.fillStyle = "#ffffff";
   tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-  tempCtx.drawImage(guideCanvas, 0, 0);  
-  tempCtx.drawImage(drawCanvas, 0, 0);   
+  tempCtx.drawImage(drawCanvas, 0, 0);
 
-  const image_b64 = tempCanvas.toDataURL("image/png");
+  const image_b64 = tempCanvas.toDataURL("image/png");  
 
   try {
     const response = await fetch("/api/drawing/predict", {

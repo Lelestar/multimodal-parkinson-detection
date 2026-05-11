@@ -13,7 +13,7 @@
     <div class="instructions">
       <h2>Instructions</h2>
       <ul>
-        <li>Tracez la spirale en suivant le guide gris, depuis le centre vers l'extérieur.</li>
+        <li>Reproduisez la spirale visible à droite, depuis le centre vers l'extérieur.</li>
         <li>Dessinez d'un trait continu, à votre rythme habituel.</li>
         <li>Une fois le tracé terminé, relâchez la souris ou le stylet pour valider ou recommencer.</li>
       </ul>
@@ -28,10 +28,18 @@
       Pour obtenir un tracé plus proche du protocole sur papier, il est recommandé d’utiliser un stylet. La souris ou le trackpad peuvent modifier la fluidité du geste et rendre le résultat moins représentatif.
     </p>
 
-    <label class="field-label">Zone de dessin</label>
-    <div class="canvas-wrapper">
-      <canvas id="guide-canvas" width="400" height="400" aria-hidden="true"></canvas>
-      <canvas id="draw-canvas" width="400" height="400" aria-label="Zone de dessin de la spirale"></canvas>
+    <div class="drawing-layout">
+      <div class="drawing-zone">
+        <label class="field-label">Zone de dessin</label>
+        <div class="canvas-wrapper">
+          <canvas id="draw-canvas" width="400" height="400" aria-label="Zone de dessin de la spirale"></canvas>
+        </div>
+      </div>
+      <div class="guide-panel">
+        <label class="field-label">Modèle à reproduire</label>
+        <canvas id="guide-canvas" width="200" height="200" aria-hidden="true"></canvas>
+        <p class="guide-hint">Tracez la spirale depuis le centre vers l'extérieur, d'un trait continu.</p>
+      </div>
     </div>
 
     <div id="drawing-actions" class="actions" hidden>

@@ -325,6 +325,40 @@ textarea {
   }
 }
 
+/* ── Drawing layout ─────────────────────────────────────────────────────────── */
+.drawing-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.drawing-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.guide-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.guide-panel #guide-canvas {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #ffffff;
+  display: block;
+}
+
+.guide-hint {
+  max-width: 200px;
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+}
+
 /* ── Drawing canvas ─────────────────────────────────────────────────────────── */
 .canvas-wrapper {
   position: relative;
@@ -338,18 +372,12 @@ textarea {
   touch-action: none;
 }
 
-.canvas-wrapper canvas {
+#draw-canvas {
   position: absolute;
   top: 0;
   left: 0;
-}
-
-#guide-canvas {
-  z-index: 1;
-}
-
-#draw-canvas {
-  z-index: 2;
-  background: transparent;
+  width: 400px;
+  height: 400px;
+  background: #ffffff;
 }
 
