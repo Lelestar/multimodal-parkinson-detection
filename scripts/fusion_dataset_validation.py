@@ -1,20 +1,13 @@
 #!/usr/bin/env python3
-"""
-Cross-dataset multimodal fusion validation.
+"""Evaluate late fusion on a repeated cross-dataset pseudo-cohort.
 
-Construit deux "patients composites" à partir de vrais échantillons de dataset :
-  - Patient HC : 1 image spirale HC + 1 session clavier HC + 1 échantillon voix HC
-  - Patient PD : 1 image spirale PD + 1 session clavier PD + 1 échantillon voix PD
+This script does not create real multimodal patients. It builds repeated
+label-consistent composites: one drawing sample, one keyboard subject/session
+and one voice sample are randomly paired inside the same class.
 
-Applique ensuite late_fusion() et affiche les scores par modalité + score fusionné.
-
-DATASETS attendus :
-  - Dessin  : data/spiral/testing/{healthy,parkinson}/*.png
-  - Clavier : data/keyboard/MIT-CS1PD/{GT_DataPD_MIT-CS1PD.csv, data_MIT-CS1PD/*.csv}
-  - Voix    : data/speech/pd_speech_features.csv  (Sakar-2019-UCI-470)
-
-Usage (depuis la racine du projet, venv actif) :
-    python scripts/fusion_dataset_validation.py
+The goal is to stress-test the late-fusion code and compare score separation
+between modalities when no shared subject-level multimodal dataset is available.
+The resulting metrics must be reported as exploratory only.
 """
 
 from __future__ import annotations
@@ -22,92 +15,88 @@ from __future__ import annotations
 import base64
 import io
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 import joblib
 import numpy as np
 import pandas as pd
+from PIL import Image
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, roc_auc_score
 
-# ── rendre le projet importable depuis scripts/ ───────────────────────────────
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-
-from PIL import Image
 
 from src.common.fusion import late_fusion
 from src.common.schemas import PredictionResult, score_to_label
 from src.modalities.drawing.predictor import DrawingPredictor
 from src.modalities.keyboard.features import build_agg_timing_xgb_feature_table
 
-# ── chemins ───────────────────────────────────────────────────────────────────
-SPIRAL_HC_DIR  = ROOT / "data" / "spiral" / "testing" / "healthy"
-SPIRAL_PD_DIR  = ROOT / "data" / "spiral" / "testing" / "parkinson"
-KEYBOARD_ROOT  = ROOT / "data" / "keyboard"
-KEYBOARD_MODEL = ROOT / "models" / "keyboard_dynamics_neuroqwerty_agg_timing_xgb.joblib"
-VOICE_CSV      = ROOT / "data" / "speech" / "pd_speech_features.csv"
-VOICE_MODEL    = ROOT / "models" / "voice_parkinson_xgb.joblib"
 
-# ── colonnes NeuroQWERTY ──────────────────────────────────────────────────────
+DRAWING_HC_DIR = ROOT / "data" / "spiral" / "testing" / "healthy"
+DRAWING_PD_DIR = ROOT / "data" / "spiral" / "testing" / "parkinson"
+KEYBOARD_ROOT = ROOT / "data" / "neuroqwerty-mit-csxpd-dataset-1.0.0"
+VOICE_CSV = ROOT / "data" / "parkinson_disease_classification" / "pd_speech_features.csv"
+
+DRAWING_MODEL = ROOT / "models" / "drawing_spiral_v2_hog_lbp_pipeline.joblib"
+KEYBOARD_MODEL = ROOT / "models" / "keyboard_dynamics_neuroqwerty_agg_timing_xgb.joblib"
+VOICE_MODEL = ROOT / "models" / "voice_parkinson_xgb.joblib"
+OOF_SCORES = ROOT / "data" / "processed" / "multimodal_oof_scores.csv"
+
 KEY_COLUMNS = ["key", "hold_time", "release_time", "press_time"]
 
-# ── correspondance Sakar-2019 → noms UCI-174 utilisés à l'entraînement ────────
 VOICE_COLUMN_MAP: dict[str, str] = {
-    "locPctJitter":               "MDVP:Jitter(%)",
-    "locAbsJitter":               "MDVP:Jitter(Abs)",
-    "rapJitter":                  "MDVP:RAP",
-    "ppq5Jitter":                 "MDVP:PPQ",
-    "ddpJitter":                  "Jitter:DDP",
-    "locShimmer":                 "MDVP:Shimmer",
-    "locDbShimmer":               "MDVP:Shimmer(dB)",
-    "apq3Shimmer":                "Shimmer:APQ3",
-    "apq5Shimmer":                "Shimmer:APQ5",
-    "apq11Shimmer":               "MDVP:APQ",
-    "ddaShimmer":                 "Shimmer:DDA",
+    "locPctJitter": "MDVP:Jitter(%)",
+    "locAbsJitter": "MDVP:Jitter(Abs)",
+    "rapJitter": "MDVP:RAP",
+    "ppq5Jitter": "MDVP:PPQ",
+    "ddpJitter": "Jitter:DDP",
+    "locShimmer": "MDVP:Shimmer",
+    "locDbShimmer": "MDVP:Shimmer(dB)",
+    "apq3Shimmer": "Shimmer:APQ3",
+    "apq5Shimmer": "Shimmer:APQ5",
+    "apq11Shimmer": "MDVP:APQ",
+    "ddaShimmer": "Shimmer:DDA",
     "meanNoiseToHarmHarmonicity": "NHR",
     "meanHarmToNoiseHarmonicity": "HNR",
-    "RPDE":                       "RPDE",
-    "DFA":                        "DFA",
-    "PPE":                        "PPE",
+    "RPDE": "RPDE",
+    "DFA": "DFA",
+    "PPE": "PPE",
 }
-VOICE_FEATURE_NAMES = list(VOICE_COLUMN_MAP.values())
+
+CONFIGURATIONS: dict[str, tuple[str, ...]] = {
+    "drawing": ("drawing",),
+    "keyboard": ("keyboard",),
+    "voice": ("voice",),
+    "drawing+keyboard": ("drawing", "keyboard"),
+    "drawing+voice": ("drawing", "voice"),
+    "keyboard+voice": ("keyboard", "voice"),
+    "drawing+keyboard+voice": ("drawing", "keyboard", "voice"),
+}
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Helpers dessin
-# ─────────────────────────────────────────────────────────────────────────────
+@dataclass(frozen=True)
+class ScorePool:
+    """Positive-class scores for healthy controls and Parkinson samples."""
 
-def _img_to_b64(path: Path) -> str:
-    buf = io.BytesIO()
-    Image.open(path).save(buf, format="PNG")
-    return base64.b64encode(buf.getvalue()).decode()
+    hc: np.ndarray
+    pd: np.ndarray
 
 
-def score_drawing(image_path: Path, predictor: DrawingPredictor) -> PredictionResult:
-    return predictor.predict({"image_b64": _img_to_b64(image_path)})
+def image_to_base64(path: Path) -> str:
+    """Convert an image file to a base64 PNG payload."""
+    buffer = io.BytesIO()
+    Image.open(path).save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
 
-
-def pick_spiral_images(n: int = 5) -> tuple[list[Path], list[Path]]:
-    """Retourne jusqu'à n chemins d'images HC et PD."""
-    hc = sorted(SPIRAL_HC_DIR.glob("*.png"))[:n]
-    pd_ = sorted(SPIRAL_PD_DIR.glob("*.png"))[:n]
-    return hc, pd_
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Helpers clavier
-# ─────────────────────────────────────────────────────────────────────────────
 
 def load_neuroqwerty_session(file_path: Path) -> pd.DataFrame:
-    """
-    Charge un fichier CSV NeuroQWERTY et retourne un DataFrame compatible avec
-    build_agg_timing_xgb_feature_table() (colonnes : hold_time, press_time,
-    release_time, flight_time).
-    """
+    """Load one NeuroQWERTY CSV session into the feature extractor format."""
     df = pd.read_csv(file_path, header=None, names=KEY_COLUMNS)
     df["key"] = df["key"].astype(str).str.strip().str.replace('"', "", regex=False)
-    for col in ["hold_time", "release_time", "press_time"]:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+    for column in ["hold_time", "release_time", "press_time"]:
+        df[column] = pd.to_numeric(df[column], errors="coerce")
     df = df.dropna(subset=["hold_time", "release_time", "press_time"])
     df = df[
         (df["press_time"] > 0)
@@ -120,339 +109,323 @@ def load_neuroqwerty_session(file_path: Path) -> pd.DataFrame:
     return df
 
 
-def pick_keyboard_subjects(dataset: str = "MIT-CS1PD") -> tuple[Path, Path]:
-    """
-    Lit le fichier GT du dataset NeuroQWERTY et retourne un fichier de session
-    pour un sujet HC et un sujet PD.
-    """
-    gt_path = KEYBOARD_ROOT / dataset / f"GT_DataPD_{dataset}.csv"
-    raw_dir = KEYBOARD_ROOT / dataset / f"data_{dataset}"
-    gt = pd.read_csv(gt_path)
-    # gt peut être une chaîne "True"/"False" ou un booléen selon le CSV
-    gt["gt_bool"] = gt["gt"].astype(str).str.lower().isin(["true", "1"])
-
-    hc_rows = gt[gt["gt_bool"] == False]
-    pd_rows = gt[gt["gt_bool"] == True]
-
-    if hc_rows.empty or pd_rows.empty:
-        raise RuntimeError(f"GT manquant pour HC ou PD dans {gt_path}")
-
-    hc_file = raw_dir / str(hc_rows.iloc[0]["file_1"])
-    pd_file = raw_dir / str(pd_rows.iloc[0]["file_1"])
-    return hc_file, pd_file
-
-
-def score_keyboard(session_path: Path, artifact: dict) -> PredictionResult:
-    """Score une session NeuroQWERTY en utilisant l'artefact clavier."""
-    window    = int(artifact.get("window", 300))
-    stride    = int(artifact.get("stride", 150))
-    min_len   = int(artifact.get("min_segment_len", 300))
+def score_keyboard_session(session_path: Path, artifact: dict) -> PredictionResult:
+    """Score one NeuroQWERTY session with the exported keyboard model."""
+    window = int(artifact.get("window", 300))
+    stride = int(artifact.get("stride", 150))
+    min_len = int(artifact.get("min_segment_len", 300))
     threshold = float(artifact.get("threshold", 0.5))
-    model     = artifact.get("pipeline") or artifact.get("model")
+    pipeline = artifact.get("pipeline") or artifact.get("model")
 
-    try:
-        keystrokes = load_neuroqwerty_session(session_path)
-    except Exception as exc:
-        return PredictionResult(
-            modality="keyboard", status="error", confidence=0.0,
-            warnings=[f"Erreur lecture fichier clavier : {exc}"],
-        )
-
+    keystrokes = load_neuroqwerty_session(session_path)
     features = build_agg_timing_xgb_feature_table(
-        keystrokes, window_size=window, stride=stride, min_segment_len=min_len,
+        keystrokes,
+        window_size=window,
+        stride=stride,
+        min_segment_len=min_len,
     )
-
     if features.empty:
         return PredictionResult(
-            modality="keyboard", status="insufficient_data", confidence=0.0,
+            modality="keyboard",
+            status="insufficient_data",
+            confidence=0.0,
             warnings=[f"Données insuffisantes : {len(keystrokes)} frappes valides."],
         )
 
-    probs = model.predict_proba(features)[:, 1]
-    score = float(np.mean(probs))
-    confidence = float(max(0.0, 1.0 - np.std(probs))) if len(probs) > 1 else 1.0
-    label = score_to_label(score, high_threshold=threshold)
-
+    probabilities = pipeline.predict_proba(features)[:, 1]
+    score = float(np.mean(probabilities))
+    confidence = float(max(0.0, 1.0 - np.std(probabilities))) if len(probabilities) > 1 else 1.0
     return PredictionResult(
         modality="keyboard",
         status="ok",
         score=score,
-        label=label,
         confidence=confidence,
-        details={
-            "n_segments": len(probs),
-            "session_file": session_path.name,
-            "scores_per_segment": [round(float(p), 3) for p in probs],
-        },
+        label=score_to_label(score, high_threshold=threshold),
+        details={"session_file": session_path.name, "n_segments": len(probabilities)},
     )
 
 
-def score_keyboard_subjects(
-    dataset: str,
-    n_per_class: int,
-    artifact: dict,
-) -> tuple[list[float], list[float]]:
-    """Score n sujets HC et n sujets PD depuis un dataset NeuroQWERTY."""
-    gt_path = KEYBOARD_ROOT / dataset / f"GT_DataPD_{dataset}.csv"
-    raw_dir = KEYBOARD_ROOT / dataset / f"data_{dataset}"
+def load_keyboard_session_paths(dataset: str = "MIT-CS1PD") -> tuple[list[Path], list[Path]]:
+    """Return one available session path per subject for HC and PD classes."""
+    dataset_root = KEYBOARD_ROOT / dataset
+    gt_path = dataset_root / f"GT_DataPD_{dataset}.csv"
+    raw_dir = dataset_root / f"data_{dataset}"
     gt = pd.read_csv(gt_path)
     gt["gt_bool"] = gt["gt"].astype(str).str.lower().isin(["true", "1"])
 
-    hc_scores: list[float] = []
-    pd_scores: list[float] = []
+    hc_paths: list[Path] = []
+    pd_paths: list[Path] = []
+    file_columns = [column for column in gt.columns if column.startswith("file_")]
 
-    for label_bool, score_list in [(False, hc_scores), (True, pd_scores)]:
-        rows = gt[gt["gt_bool"] == label_bool].head(n_per_class)
-        for _, row in rows.iterrows():
-            for file_col in [c for c in gt.columns if c.startswith("file_")]:
-                fname = row.get(file_col)
-                if pd.isna(fname):
-                    continue
-                fpath = raw_dir / str(fname)
-                if not fpath.exists():
-                    continue
-                result = score_keyboard(fpath, artifact)
-                if result.status == "ok" and result.score is not None:
-                    score_list.append(result.score)
-                break  # une session par sujet suffit
+    for _, row in gt.iterrows():
+        target = pd_paths if row["gt_bool"] else hc_paths
+        for column in file_columns:
+            value = row.get(column)
+            if pd.isna(value):
+                continue
+            path = raw_dir / str(value)
+            if path.exists():
+                target.append(path)
+                break
 
-    return hc_scores, pd_scores
+    return hc_paths, pd_paths
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Helpers voix
-# ─────────────────────────────────────────────────────────────────────────────
 
 def load_voice_dataset() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Charge le CSV Sakar-2019-UCI-470, extrait les 16 features Praat-compatibles
-    et retourne (hc_df, pd_df).
-
-    Certaines versions du CSV ont deux lignes d'en-tête (header=1) ;
-    d'autres n'en ont qu'une (header=0). On détecte automatiquement.
-    """
+    """Load Sakar-2019 voice features and split them into HC and PD rows."""
     df = pd.read_csv(VOICE_CSV, header=0)
     if "class" not in df.columns:
-        # Deuxième format : la vraie ligne d'en-tête est en position 1
         df = pd.read_csv(VOICE_CSV, header=1)
+
     df["class"] = pd.to_numeric(df["class"], errors="coerce")
     df = df[df["class"].notna()].copy()
     df["class"] = df["class"].astype(int)
 
-    feat_df = df[list(VOICE_COLUMN_MAP.keys())].rename(columns=VOICE_COLUMN_MAP)
-    feat_df = feat_df.apply(pd.to_numeric, errors="coerce")
-    medians = feat_df.median()
-    feat_df = feat_df.fillna(medians)
-    feat_df["class"] = df["class"].values
+    feature_frame = df[list(VOICE_COLUMN_MAP.keys())].rename(columns=VOICE_COLUMN_MAP)
+    feature_frame = feature_frame.apply(pd.to_numeric, errors="coerce")
+    feature_frame = feature_frame.fillna(feature_frame.median())
+    feature_frame["class"] = df["class"].values
 
-    hc_df = feat_df[feat_df["class"] == 0].drop(columns=["class"]).reset_index(drop=True)
-    pd_df = feat_df[feat_df["class"] == 1].drop(columns=["class"]).reset_index(drop=True)
-    return hc_df, pd_df
+    hc = feature_frame[feature_frame["class"] == 0].drop(columns=["class"]).reset_index(drop=True)
+    pd_ = feature_frame[feature_frame["class"] == 1].drop(columns=["class"]).reset_index(drop=True)
+    return hc, pd_
 
 
-def score_voice(row: pd.Series, artifact: dict) -> PredictionResult:
-    """Score une ligne de features vocales avec l'artefact voix."""
+def score_voice_row(row: pd.Series, artifact: dict) -> PredictionResult:
+    """Score one voice feature row with the exported voice model."""
+    feature_names = artifact.get("feature_names", artifact.get("features", list(VOICE_COLUMN_MAP.values())))
+    medians = artifact.get("feature_medians", {})
+    values = []
+    for feature in feature_names:
+        value = row.get(feature, medians.get(feature, 0.0))
+        if pd.isna(value):
+            value = medians.get(feature, 0.0)
+        values.append(float(value))
+    feature_vector = np.asarray(values, dtype=float).reshape(1, -1)
+    pipeline = artifact.get("pipeline") or artifact.get("model")
+    score = float(pipeline.predict_proba(feature_vector)[0, 1])
     threshold = float(artifact.get("threshold", 0.5))
-    model = artifact.get("pipeline") or artifact.get("model")
-    X = np.array([[row[feat] for feat in VOICE_FEATURE_NAMES]])
-    score = float(model.predict_proba(X)[0, 1])
-    label = score_to_label(score, high_threshold=threshold)
     return PredictionResult(
-        modality="voice", status="ok", score=score, label=label, confidence=1.0,
+        modality="voice",
+        status="ok",
+        score=score,
+        confidence=1.0,
+        label=score_to_label(score, high_threshold=threshold),
     )
 
 
-def score_voice_population(
-    voice_df: pd.DataFrame, artifact: dict, n: int,
-) -> list[float]:
-    """Score les n premiers échantillons d'un sous-ensemble voix."""
-    scores = []
-    for i in range(min(n, len(voice_df))):
-        r = score_voice(voice_df.iloc[i], artifact)
-        if r.score is not None:
-            scores.append(r.score)
-    return scores
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Affichage
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _fmt_score(v: float | None) -> str:
-    return f"{v:.3f}" if v is not None else "N/A"
-
-
-def print_composite_patient(
-    title: str,
-    preds: list[PredictionResult],
-    fusion,
-) -> None:
-    W = 62
-    print(f"\n{'='*W}")
-    print(f"  {title}")
-    print(f"{'='*W}")
-    for p in preds:
-        tag = f"[{p.modality:10s}]"
-        info = (
-            f"score={_fmt_score(p.score)}  "
-            f"conf={_fmt_score(p.confidence)}  "
-            f"label={p.label or p.status}"
-        )
-        print(f"  {tag}  {info}")
-        if p.status == "keyboard" and p.details:
-            segs = p.details.get("scores_per_segment", [])
-            if segs:
-                print(f"             segments: {segs}")
-    print(f"  {'─'*W}")
-    print(
-        f"  [FUSION    ]  "
-        f"score={_fmt_score(fusion.score)}  "
-        f"conf={_fmt_score(fusion.confidence)}  "
-        f"label={fusion.label or fusion.status}"
-    )
-    if fusion.ignored_modalities:
-        print(f"  Ignorées : {fusion.ignored_modalities}")
-    if fusion.warnings:
-        for w in fusion.warnings:
-            print(f"  ⚠  {w}")
-
-
-def print_population_summary(
-    spiral_hc: list[Path], spiral_pd: list[Path],
-    drawing_pred: DrawingPredictor,
-    hc_kbd_scores: list[float], pd_kbd_scores: list[float],
-    hc_voice_df: pd.DataFrame, pd_voice_df: pd.DataFrame,
-    voice_art: dict,
-    n_voice: int = 20,
-) -> None:
-    W = 62
-    print(f"\n\n{'='*W}")
-    print("  Résumé population par modalité")
-    print(f"{'='*W}")
-
-    # Dessin
-    print("\n  [ Dessin — dataset test spiral ]")
-    for cls_name, imgs in [("healthy  ", spiral_hc), ("parkinson", spiral_pd)]:
-        scores = [score_drawing(p, drawing_pred).score for p in imgs]
-        scores = [s for s in scores if s is not None]
-        if scores:
-            print(
-                f"    {cls_name}  n={len(scores):2d}  "
-                f"mean={np.mean(scores):.3f}  "
-                f"min={np.min(scores):.3f}  "
-                f"max={np.max(scores):.3f}"
-            )
-
-    # Clavier
-    print("\n  [ Clavier — NeuroQWERTY MIT-CS1PD ]")
-    for cls_name, scores in [("HC", hc_kbd_scores), ("PD", pd_kbd_scores)]:
-        if scores:
-            print(
-                f"    {cls_name}  n={len(scores):2d}  "
-                f"mean={np.mean(scores):.3f}  "
-                f"min={np.min(scores):.3f}  "
-                f"max={np.max(scores):.3f}"
-            )
-        else:
-            print(f"    {cls_name}  aucun score valide")
-
-    # Voix
-    print("\n  [ Voix — Sakar-2019-UCI-470 ]")
-    for cls_name, vdf in [("HC", hc_voice_df), ("PD", pd_voice_df)]:
-        scores = score_voice_population(vdf, voice_art, n=n_voice)
-        if scores:
-            print(
-                f"    {cls_name}  n={len(scores):2d}  "
-                f"mean={np.mean(scores):.3f}  "
-                f"min={np.min(scores):.3f}  "
-                f"max={np.max(scores):.3f}"
-            )
-
-    print()
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Main
-# ─────────────────────────────────────────────────────────────────────────────
-
-def main() -> None:
-    print("\n  Validation fusion multimodale cross-dataset")
-    print("  " + "─" * 58)
-
-    # Vérification des chemins
-    required = [
-        SPIRAL_HC_DIR, SPIRAL_PD_DIR, KEYBOARD_ROOT,
-        KEYBOARD_MODEL, VOICE_CSV, VOICE_MODEL,
+def build_drawing_pool(predictor: DrawingPredictor) -> ScorePool:
+    """Score all available drawing test images."""
+    hc_scores = [
+        predictor.predict({"image_b64": image_to_base64(path)}).score
+        for path in sorted(DRAWING_HC_DIR.glob("*.png"))
     ]
-    missing = [str(p) for p in required if not p.exists()]
-    if missing:
-        print("\nERREUR — ressources manquantes :")
-        for m in missing:
-            print(f"  {m}")
+    pd_scores = [
+        predictor.predict({"image_b64": image_to_base64(path)}).score
+        for path in sorted(DRAWING_PD_DIR.glob("*.png"))
+    ]
+    return ScorePool(
+        hc=np.array([score for score in hc_scores if score is not None], dtype=float),
+        pd=np.array([score for score in pd_scores if score is not None], dtype=float),
+    )
+
+
+def build_keyboard_pool(artifact: dict, dataset: str = "MIT-CS1PD") -> ScorePool:
+    """Score one available NeuroQWERTY session per subject."""
+    hc_paths, pd_paths = load_keyboard_session_paths(dataset)
+
+    def score_paths(paths: list[Path]) -> np.ndarray:
+        scores: list[float] = []
+        for path in paths:
+            result = score_keyboard_session(path, artifact)
+            if result.status == "ok" and result.score is not None:
+                scores.append(result.score)
+        return np.array(scores, dtype=float)
+
+    return ScorePool(hc=score_paths(hc_paths), pd=score_paths(pd_paths))
+
+
+def build_voice_pool(artifact: dict) -> ScorePool:
+    """Score all available Sakar-2019 voice rows."""
+    hc_df, pd_df = load_voice_dataset()
+
+    def score_rows(frame: pd.DataFrame) -> np.ndarray:
+        scores = [score_voice_row(row, artifact).score for _, row in frame.iterrows()]
+        return np.array([score for score in scores if score is not None], dtype=float)
+
+    return ScorePool(hc=score_rows(hc_df), pd=score_rows(pd_df))
+
+
+def check_required_paths() -> None:
+    """Fail early with a clear message when OOF scores are missing."""
+    if not OOF_SCORES.exists():
+        print("Scores out-of-fold introuvables :")
+        print(f"  - {OOF_SCORES.relative_to(ROOT)}")
+        print("\nGénérez-les d'abord avec :")
+        print("  python scripts/generate_unimodal_oof_scores.py")
         sys.exit(1)
 
-    # Chargement des modèles
-    print("\nChargement des modèles...", end=" ", flush=True)
-    drawing_pred = DrawingPredictor()
-    keyboard_art = joblib.load(KEYBOARD_MODEL)
-    voice_art    = joblib.load(VOICE_MODEL)
-    print("OK")
 
-    # Sélection des échantillons
-    hc_spirals, pd_spirals       = pick_spiral_images(n=5)
-    hc_kbd_file, pd_kbd_file     = pick_keyboard_subjects("MIT-CS1PD")
-    hc_voice_df, pd_voice_df     = load_voice_dataset()
+def check_model_scoring_paths() -> None:
+    """Fail early with a clear message when raw resources are missing."""
+    required = [
+        DRAWING_HC_DIR,
+        DRAWING_PD_DIR,
+        KEYBOARD_ROOT / "MIT-CS1PD" / "GT_DataPD_MIT-CS1PD.csv",
+        KEYBOARD_ROOT / "MIT-CS1PD" / "data_MIT-CS1PD",
+        VOICE_CSV,
+        DRAWING_MODEL,
+        KEYBOARD_MODEL,
+        VOICE_MODEL,
+    ]
+    missing = [path for path in required if not path.exists()]
+    if missing:
+        print("Ressources manquantes :")
+        for path in missing:
+            print(f"  - {path.relative_to(ROOT)}")
+        print("\nVoir docs/multimodal/evaluation_pseudo_cohorte.md pour les chemins attendus.")
+        sys.exit(1)
 
-    print("\nEchantillons sélectionnés :")
-    print(f"  Dessin HC  : {hc_spirals[0].name}  |  PD : {pd_spirals[0].name}")
-    print(f"  Clavier HC : {hc_kbd_file.name}")
-    print(f"  Clavier PD : {pd_kbd_file.name}")
-    print(f"  Voix HC    : {len(hc_voice_df)} enregistrements disponibles")
-    print(f"  Voix PD    : {len(pd_voice_df)} enregistrements disponibles")
 
-    # ── Patient HC ────────────────────────────────────────────────────────────
-    print("\nScoring patient HC composite...", end=" ", flush=True)
-    hc_drawing  = score_drawing(hc_spirals[0], drawing_pred)
-    hc_keyboard = score_keyboard(hc_kbd_file, keyboard_art)
-    hc_voice    = score_voice(hc_voice_df.iloc[0], voice_art)
-    hc_fusion   = late_fusion([hc_drawing, hc_keyboard, hc_voice])
-    print("OK")
-    print_composite_patient(
-        "Patient HC (composite cross-dataset)",
-        [hc_drawing, hc_keyboard, hc_voice],
-        hc_fusion,
+def load_oof_pools(path: Path = OOF_SCORES) -> dict[str, ScorePool]:
+    """Load out-of-fold modality scores as HC/PD pools."""
+    frame = pd.read_csv(path)
+    required_columns = {"modality", "label", "score", "sample_id", "subject_id", "fold"}
+    missing = required_columns - set(frame.columns)
+    if missing:
+        raise ValueError(f"Colonnes manquantes dans {path.relative_to(ROOT)} : {sorted(missing)}")
+
+    pools: dict[str, ScorePool] = {}
+    for modality, group in frame.groupby("modality"):
+        hc = group[group["label"].astype(int) == 0]["score"].to_numpy(dtype=float)
+        pd_ = group[group["label"].astype(int) == 1]["score"].to_numpy(dtype=float)
+        if len(hc) == 0 or len(pd_) == 0:
+            raise ValueError(f"Scores insuffisants pour la modalité {modality}.")
+        pools[str(modality)] = ScorePool(hc=hc, pd=pd_)
+    return pools
+
+
+def summarize_pool(name: str, pool: ScorePool) -> dict[str, float | int | str]:
+    """Return basic score separation metrics for one modality."""
+    y_true = np.array([0] * len(pool.hc) + [1] * len(pool.pd))
+    y_score = np.concatenate([pool.hc, pool.pd])
+    y_pred = (y_score >= 0.5).astype(int)
+    return {
+        "configuration": name,
+        "n_hc": len(pool.hc),
+        "n_pd": len(pool.pd),
+        "mean_hc": float(np.mean(pool.hc)) if len(pool.hc) else np.nan,
+        "mean_pd": float(np.mean(pool.pd)) if len(pool.pd) else np.nan,
+        "auc": float(roc_auc_score(y_true, y_score)) if len(set(y_true)) == 2 else np.nan,
+        "balanced_accuracy_at_0.5": float(balanced_accuracy_score(y_true, y_pred)),
+    }
+
+
+def sample_composite_scores(
+    pools: dict[str, ScorePool],
+    modalities: tuple[str, ...],
+    rng: np.random.Generator,
+    n_per_class: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Sample repeated label-consistent composites and return HC/PD fusion scores."""
+    hc_scores: list[float] = []
+    pd_scores: list[float] = []
+
+    for label, output in [("hc", hc_scores), ("pd", pd_scores)]:
+        for _ in range(n_per_class):
+            predictions: list[PredictionResult] = []
+            for modality in modalities:
+                candidates = getattr(pools[modality], label)
+                score = float(rng.choice(candidates))
+                predictions.append(
+                    PredictionResult(
+                        modality=modality,
+                        status="ok",
+                        score=score,
+                        confidence=1.0,
+                        label=score_to_label(score),
+                    )
+                )
+            fusion = late_fusion(predictions)
+            if fusion.status == "ok" and fusion.score is not None:
+                output.append(float(fusion.score))
+
+    return np.array(hc_scores, dtype=float), np.array(pd_scores, dtype=float)
+
+
+def evaluate_configurations(
+    pools: dict[str, ScorePool],
+    n_repeats: int = 50,
+    n_per_class: int = 100,
+    seed: int = 42,
+) -> pd.DataFrame:
+    """Evaluate individual modalities and late-fusion combinations repeatedly."""
+    rows: list[dict[str, float | int | str]] = []
+    master_rng = np.random.default_rng(seed)
+
+    for configuration, modalities in CONFIGURATIONS.items():
+        aucs: list[float] = []
+        balanced_accuracies: list[float] = []
+        mean_hc_values: list[float] = []
+        mean_pd_values: list[float] = []
+
+        for _ in range(n_repeats):
+            rng = np.random.default_rng(int(master_rng.integers(0, 2**32 - 1)))
+            hc_scores, pd_scores = sample_composite_scores(
+                pools,
+                modalities,
+                rng=rng,
+                n_per_class=n_per_class,
+            )
+            y_true = np.array([0] * len(hc_scores) + [1] * len(pd_scores))
+            y_score = np.concatenate([hc_scores, pd_scores])
+            y_pred = (y_score >= 0.5).astype(int)
+            aucs.append(float(roc_auc_score(y_true, y_score)))
+            balanced_accuracies.append(float(balanced_accuracy_score(y_true, y_pred)))
+            mean_hc_values.append(float(np.mean(hc_scores)))
+            mean_pd_values.append(float(np.mean(pd_scores)))
+
+        rows.append(
+            {
+                "configuration": configuration,
+                "modalities": "+".join(modalities),
+                "repeats": n_repeats,
+                "n_per_class_per_repeat": n_per_class,
+                "auc_mean": np.mean(aucs),
+                "auc_std": np.std(aucs, ddof=1),
+                "balanced_accuracy_mean": np.mean(balanced_accuracies),
+                "balanced_accuracy_std": np.std(balanced_accuracies, ddof=1),
+                "mean_hc_score": np.mean(mean_hc_values),
+                "mean_pd_score": np.mean(mean_pd_values),
+            }
+        )
+
+    return pd.DataFrame(rows).sort_values("auc_mean", ascending=False).reset_index(drop=True)
+
+
+def main() -> None:
+    """Run the pseudo-cohort evaluation and print compact tables."""
+    print("Evaluation multimodale par pseudo-cohorte cross-dataset avec scores OOF")
+    print("=" * 64)
+    print(
+        "Attention : les composites n'associent pas les trois modalités d'une même personne.\n"
+        "Les scores unimodaux sont out-of-fold : chaque score vient d'un modèle qui n'a pas vu cet exemple.\n"
+        "Les résultats restent exploratoires et servent surtout à tester la fusion tardive.\n"
     )
 
-    # ── Patient PD ────────────────────────────────────────────────────────────
-    print("\nScoring patient PD composite...", end=" ", flush=True)
-    pd_drawing  = score_drawing(pd_spirals[0], drawing_pred)
-    pd_keyboard = score_keyboard(pd_kbd_file, keyboard_art)
-    pd_voice    = score_voice(pd_voice_df.iloc[0], voice_art)
-    pd_fusion   = late_fusion([pd_drawing, pd_keyboard, pd_voice])
-    print("OK")
-    print_composite_patient(
-        "Patient PD (composite cross-dataset)",
-        [pd_drawing, pd_keyboard, pd_voice],
-        pd_fusion,
-    )
+    check_required_paths()
+    pools = load_oof_pools()
 
-    # ── Résumé population ─────────────────────────────────────────────────────
-    print("\nCalcul du résumé population (clavier : 5 sujets / classe)...", end=" ", flush=True)
-    hc_kbd_scores, pd_kbd_scores = score_keyboard_subjects(
-        "MIT-CS1PD", n_per_class=5, artifact=keyboard_art,
+    pool_summary = pd.DataFrame(
+        summarize_pool(name, pool)
+        for name, pool in pools.items()
     )
-    print("OK")
-    print_population_summary(
-        spiral_hc=hc_spirals,
-        spiral_pd=pd_spirals,
-        drawing_pred=drawing_pred,
-        hc_kbd_scores=hc_kbd_scores,
-        pd_kbd_scores=pd_kbd_scores,
-        hc_voice_df=hc_voice_df,
-        pd_voice_df=pd_voice_df,
-        voice_art=voice_art,
-        n_voice=20,
-    )
+    print("\nScores disponibles par modalité")
+    print(pool_summary.round(3).to_string(index=False))
+
+    results = evaluate_configurations(pools)
+    print("\nEvaluation répétée des fusions")
+    print(results.round(3).to_string(index=False))
 
 
 if __name__ == "__main__":

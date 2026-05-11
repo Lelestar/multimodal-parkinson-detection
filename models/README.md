@@ -6,13 +6,13 @@ Ce dossier contient les artefacts nécessaires à l’inférence locale. Le READ
 
 ```text
 models/keyboard_dynamics_neuroqwerty_agg_timing_xgb.joblib
-models/drawing_spiral_v1_pipeline.joblib
+models/drawing_spiral_v2_hog_lbp_pipeline.joblib
 models/voice_parkinson_xgb.joblib
 ```
 
 Ces modèles légers sont conservés dans le repo pour que les modalités clavier, dessin et voix fonctionnent directement.
 
-Le modèle clavier utilise des features temporelles agrégées et `XGBoost`. Le modèle dessin utilise des features HOG extraites d’une image de spirale et un pipeline scikit-learn. Le modèle voix utilise des features vocales extraites avec Praat/Parselmouth et un pipeline scikit-learn.
+Le modèle clavier utilise des features temporelles agrégées et `XGBoost`. Le modèle dessin utilise des features HOG + LBP extraites d’une image de spirale et un pipeline scikit-learn. Le modèle voix utilise des features vocales extraites avec Praat/Parselmouth et un pipeline scikit-learn.
 
 Les modèles légers nécessaires à la démonstration peuvent aussi être ajoutés au repo, à condition qu’ils restent raisonnables en taille et qu’ils soient utiles au lancement local de l’application. Dans ce cas, il faut ajuster `.gitignore` pour autoriser explicitement le fichier concerné.
 

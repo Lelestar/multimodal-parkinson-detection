@@ -17,10 +17,12 @@ notebooks/                   # expérimentations par modalité
 notebooks/keyboard/          # notebooks clavier
 notebooks/drawing/           # notebooks dessin
 notebooks/voice/             # notebooks voix
+notebooks/multimodal/        # expérimentations de fusion multimodale
 docs/                        # documentation par modalité
 docs/keyboard/               # documentation clavier
 docs/drawing/                # documentation dessin
 docs/voice/                  # documentation voix
+docs/multimodal/             # documentation fusion multimodale
 ```
 
 ## Installation
@@ -73,54 +75,7 @@ uv pip install -r requirements-notebooks.txt
 
 ## Datasets
 
-Les datasets ne sont pas inclus dans le dépôt. Il faut les télécharger manuellement et les placer dans les dossiers correspondants.
-
-### Dessin — Spiral dataset
-
-Source : [Mendeley Data – fd5wd6wmdj](https://data.mendeley.com/datasets/fd5wd6wmdj/1)
-
-Télécharger et décompresser dans :
-
-```
-data/spiral/
-├── training/
-│   ├── healthy/
-│   └── parkinson/
-└── testing/
-    ├── healthy/
-    └── parkinson/
-```
-
-### Clavier — NeuroQWERTY MIT-CS1PD / MIT-CS2PD
-
-Source : [PhysioNet – nqmitcsxpd 1.0.0](https://physionet.org/content/nqmitcsxpd/1.0.0/)
-
-Télécharger et décompresser dans :
-
-```
-data/keyboard/
-├── MIT-CS1PD/
-│   ├── GT_DataPD_MIT-CS1PD.csv
-│   └── data_MIT-CS1PD/
-│       └── *.csv
-└── MIT-CS2PD/
-    ├── GT_DataPD_MIT-CS2PD.csv
-    └── data_MIT-CS2PD/
-        └── *.csv
-```
-
-### Voix — Parkinson's Disease Speech Signal Features (Sakar 2019)
-
-Source : [Kaggle – dipayanbiswas/parkinsons-disease-speech-signal-features](https://www.kaggle.com/datasets/dipayanbiswas/parkinsons-disease-speech-signal-features)
-
-Télécharger `pd_speech_features.csv` et le placer dans :
-
-```
-data/speech/
-└── pd_speech_features.csv
-```
-
----
+Les datasets bruts ne sont pas inclus dans le dépôt. Les chemins attendus pour les expérimentations de fusion multimodale sont décrits dans [`docs/multimodal/evaluation_pseudo_cohorte.md`](docs/multimodal/evaluation_pseudo_cohorte.md).
 
 ## Modèles et pipelines
 
@@ -133,6 +88,7 @@ Chaque modalité peut utiliser son propre format de modèle (`joblib`, `.pt`, `.
 - Clavier : [`docs/keyboard/synthese_finale_keyboard_dynamics.md`](docs/keyboard/synthese_finale_keyboard_dynamics.md)
 - Dessin : [`docs/drawing/synthese_drawing.md`](docs/drawing/synthese_drawing.md)
 - Voix : [`docs/voice/synthese_voice.md`](docs/voice/synthese_voice.md)
+- Fusion multimodale : [`docs/multimodal/evaluation_pseudo_cohorte.md`](docs/multimodal/evaluation_pseudo_cohorte.md)
 
 ## Lancer l’application
 

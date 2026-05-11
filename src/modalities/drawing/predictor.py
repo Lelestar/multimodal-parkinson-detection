@@ -80,8 +80,9 @@ class DrawingPredictor:
         if lbp_params is None:
             return hog_features
 
+        lbp_input = np.rint(arr * 255).clip(0, 255).astype(np.uint8)
         lbp = local_binary_pattern(
-            arr,
+            lbp_input,
             P=lbp_params["n_points"],
             R=lbp_params["radius"],
             method="uniform",
