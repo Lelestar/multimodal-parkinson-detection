@@ -17,10 +17,12 @@ notebooks/                   # expérimentations par modalité
 notebooks/keyboard/          # notebooks clavier
 notebooks/drawing/           # notebooks dessin
 notebooks/voice/             # notebooks voix
+notebooks/multimodal/        # expérimentations de fusion multimodale
 docs/                        # documentation par modalité
 docs/keyboard/               # documentation clavier
 docs/drawing/                # documentation dessin
 docs/voice/                  # documentation voix
+docs/multimodal/             # documentation fusion multimodale
 ```
 
 ## Installation
@@ -71,6 +73,10 @@ Avec `uv` :
 uv pip install -r requirements-notebooks.txt
 ```
 
+## Datasets
+
+Les datasets bruts ne sont pas inclus dans le dépôt. Les chemins attendus pour les expérimentations de fusion multimodale sont décrits dans [`docs/multimodal/evaluation_pseudo_cohorte.md`](docs/multimodal/evaluation_pseudo_cohorte.md).
+
 ## Modèles et pipelines
 
 Le modèle clavier principal est versionné dans `models/keyboard_dynamics_neuroqwerty_agg_timing_xgb.joblib` pour que l’application fonctionne directement. Les conventions du dossier `models/`, les règles de versionnement des modèles légers et les formats recommandés sont décrits dans [`models/README.md`](models/README.md).
@@ -82,6 +88,7 @@ Chaque modalité peut utiliser son propre format de modèle (`joblib`, `.pt`, `.
 - Clavier : [`docs/keyboard/synthese_finale_keyboard_dynamics.md`](docs/keyboard/synthese_finale_keyboard_dynamics.md)
 - Dessin : [`docs/drawing/synthese_drawing.md`](docs/drawing/synthese_drawing.md)
 - Voix : [`docs/voice/synthese_voice.md`](docs/voice/synthese_voice.md)
+- Fusion multimodale : [`docs/multimodal/evaluation_pseudo_cohorte.md`](docs/multimodal/evaluation_pseudo_cohorte.md)
 
 ## Lancer l’application
 

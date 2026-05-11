@@ -6,7 +6,7 @@ Le résultat ne constitue pas un diagnostic médical.
 
 ## Données utilisées
 
-Le modèle a été entraîné sur le dataset **NewHandPD** de l’UNESP, au Brésil.
+Le modèle a été entraîné sur un dataset de spirales papier Parkinson / contrôle.
 
 Les images sources ne sont pas versionnées dans le dépôt. Le notebook d’entraînement télécharge les spirales depuis les archives publiques :
 
@@ -18,14 +18,14 @@ Les images sources ne sont pas versionnées dans le dépôt. Le notebook d’ent
 La méthode actuelle utilise :
 
 - une image de spirale dessinée dans un canvas HTML ;
-- un prétraitement image en niveaux de gris ;
-- des features `HOG` ;
+- un prétraitement image en niveaux de gris avec binarisation ;
+- des features `HOG` + `LBP` ;
 - un pipeline scikit-learn sauvegardé avec `joblib`.
 
 Le modèle utilisé par l’application est :
 
 ```text
-models/drawing_spiral_v1_pipeline.joblib
+models/drawing_spiral_v2_hog_lbp_pipeline.joblib
 ```
 
 Le prédicteur associé est :
@@ -41,7 +41,7 @@ Dans l’application :
 1. l’utilisateur ouvre `/drawing` ;
 2. il trace une spirale en suivant le guide affiché ;
 3. le canvas est converti en image PNG base64 ;
-4. le backend extrait les features HOG ;
+4. le backend extrait les features HOG + LBP ;
 5. le pipeline prédit un score ;
 6. le résultat est enregistré pour la fusion multimodale.
 
@@ -50,13 +50,13 @@ Dans l’application :
 Le notebook d’entraînement est :
 
 ```text
-notebooks/drawing/drawing_model_training.ipynb
+notebooks/drawing/drawing_model_spiral_dataset.ipynb
 ```
 
 Il entraîne et exporte :
 
 ```text
-models/drawing_spiral_v1_pipeline.joblib
+models/drawing_spiral_v2_hog_lbp_pipeline.joblib
 ```
 
 ## Limites
