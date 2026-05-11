@@ -71,6 +71,57 @@ Avec `uv` :
 uv pip install -r requirements-notebooks.txt
 ```
 
+## Datasets
+
+Les datasets ne sont pas inclus dans le dépôt. Il faut les télécharger manuellement et les placer dans les dossiers correspondants.
+
+### Dessin — Spiral dataset
+
+Source : [Mendeley Data – fd5wd6wmdj](https://data.mendeley.com/datasets/fd5wd6wmdj/1)
+
+Télécharger et décompresser dans :
+
+```
+data/spiral/
+├── training/
+│   ├── healthy/
+│   └── parkinson/
+└── testing/
+    ├── healthy/
+    └── parkinson/
+```
+
+### Clavier — NeuroQWERTY MIT-CS1PD / MIT-CS2PD
+
+Source : [PhysioNet – nqmitcsxpd 1.0.0](https://physionet.org/content/nqmitcsxpd/1.0.0/)
+
+Télécharger et décompresser dans :
+
+```
+data/keyboard/
+├── MIT-CS1PD/
+│   ├── GT_DataPD_MIT-CS1PD.csv
+│   └── data_MIT-CS1PD/
+│       └── *.csv
+└── MIT-CS2PD/
+    ├── GT_DataPD_MIT-CS2PD.csv
+    └── data_MIT-CS2PD/
+        └── *.csv
+```
+
+### Voix — Parkinson's Disease Speech Signal Features (Sakar 2019)
+
+Source : [Kaggle – dipayanbiswas/parkinsons-disease-speech-signal-features](https://www.kaggle.com/datasets/dipayanbiswas/parkinsons-disease-speech-signal-features)
+
+Télécharger `pd_speech_features.csv` et le placer dans :
+
+```
+data/speech/
+└── pd_speech_features.csv
+```
+
+---
+
 ## Modèles et pipelines
 
 Le modèle clavier principal est versionné dans `models/keyboard_dynamics_neuroqwerty_agg_timing_xgb.joblib` pour que l’application fonctionne directement. Les conventions du dossier `models/`, les règles de versionnement des modèles légers et les formats recommandés sont décrits dans [`models/README.md`](models/README.md).
