@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Test voix - Détection Parkinson{% endblock %}
+
+{% block content %}
+<section class="page-section">
+  <div class="section-header">
+    <h1>Voix (biomarqueurs tabulaires)</h1>
+    <p>
+      Cette page envoie des <strong>mesures vocales déjà calculées</strong> (comme dans le dataset Oxford / UCI).
+      Il n’y a pas encore d’upload de fichier audio : analyser un .wav sera une évolution future.
+    </p>
+  </div>
+
+  <div class="test-panel">
+    <div class="instructions">
+      <h2>Ce que teste la modalité</h2>
+      <ul>
+        <li>Un modèle tabulaire estime un <strong>score exploratoire</strong> lié au profil Parkinson vs contrôle <strong>dans le jeu de données</strong>.</li>
+        <li>Tu peux charger un exemple sain ou Parkinson tiré du dataset, modifier les valeurs, puis prédire.</li>
+        <li>Le résultat est enregistré pour la page <strong>Résultat global</strong> si le statut est « ok ».</li>
+      </ul>
+    </div>
+
+    <p class="notice-note" aria-label="Avertissement">
+      <span aria-hidden="true">!</span>
+      Outil de démonstration pédagogique : <strong>pas un diagnostic médical</strong>.
+    </p>
+
+    <div class="actions">
+      <button type="button" class="button secondary" id="btn-example-control">Charger un exemple contrôle</button>
+      <button type="button" class="button secondary" id="btn-example-pd">Charger un exemple Parkinson</button>
+      <button type="button" class="button" id="btn-predict">Prédire</button>
+    </div>
+
+    <p class="field-label">Mesures (22 champs, ordre du dataset)</p>
+    <div class="voice-features-grid" id="voice-form">
+      {% for col in feature_columns %}
+        <div>
+          <label for="vf-{{ loop.index }}">{{ col }}</label>
+          <input type="text" inputmode="decimal" id="vf-{{ loop.index }}" data-voice-feature="{{ col }}" autocomplete="off" />
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <section id="result-panel" class="result-panel" hidden>
+    <h2>Résultat voix</h2>
+    <dl class="result-list">
+      <div>
+        <dt>Statut</dt>
+        <dd id="result-status"></dd>
+      </div>
+      <div>
+        <dt>Signal détecté</dt>
+        <dd id="result-label"></dd>
+      </div>
+      <div>
+        <dt>Score exploratoire</dt>
+        <dd id="result-score"></dd>
+      </div>
+      <div>
+        <dt>Confiance technique</dt>
+        <dd id="result-confidence"></dd>
+      </div>
+      <div>
+        <dt>Modèle</dt>
+        <dd id="result-model"></dd>
+      </div>
+    </dl>
+    <p class="field-label">Détails</p>
+    <pre id="result-details" class="prompt-text" style="font-size: 12px; overflow: auto; max-height: 200px;"></pre>
+    <ul id="result-warnings" class="warnings"></ul>
+    <p class="medical-note">Ce résultat est expérimental et ne constitue pas un diagnostic médical.</p>
+    <div class="actions">
+      <a class="button" href="{{ url_for('results') }}">Voir le résultat global</a>
+    </div>
+  </section>
+</section>
+<script src="{{ url_for('static', filename='js/voice_predict.js') }}"></script>
+{% endblock %}

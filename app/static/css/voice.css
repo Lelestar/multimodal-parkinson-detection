@@ -1,0 +1,25 @@
+/* Styles spécifiques à la modalité voix (grille de saisie des 22 biomarqueurs). */
+
+.voice-features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px 16px;
+  margin-top: 12px;
+}
+
+.voice-features-grid label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+
+.voice-features-grid input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+}
